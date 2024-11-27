@@ -19,7 +19,7 @@ echo Checking if the current directory is a Git repository...
 git rev-parse --is-inside-work-tree >nul 2>&1
 IF %ERRORLEVEL% NEQ 0 (
     echo Current directory is not a Git repository. Cloning the repository here...
-    git clone %REPO_URL% . 
+    git clone %REPO_URL%
     IF %ERRORLEVEL% NEQ 0 (
         echo Failed to clone repository. Please check the URL or your network connection.
         pause
