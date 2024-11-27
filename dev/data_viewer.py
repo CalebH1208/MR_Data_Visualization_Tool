@@ -1,14 +1,14 @@
 import random
 import os
 os.environ["QT_API"] = "PyQt6"
-import matplotlib
+
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from matplotlib.figure import Figure
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QLineEdit, QComboBox, QCheckBox, QPushButton, QFileDialog, QTextEdit, QDialog
 )
-from PyQt6.QtCore import Qt, QObject, QThread, pyqtSignal, QRect
+from PyQt6.QtCore import Qt, QObject, QThread, pyqtSignal
 from PyQt6.QtGui import QPalette, QColor, QFont
 import sys
 import pickle
@@ -2005,8 +2005,6 @@ class RemovePresetPopoutWindow(QDialog):
     def get_name(self):
         """Return the entered text when dialog is accepted."""
         return self.preset_name_dropdown.currentText()
-
-print(matplotlib.get_backend())
 
 app = QApplication(sys.argv)
 window = MizzouDataTool()
