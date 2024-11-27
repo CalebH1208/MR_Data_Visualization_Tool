@@ -615,7 +615,7 @@ class Dataframe:
                 if (z_vals[0] < ranges[2][0] or z_vals[0] > ranges[2][1]) and start_pos[2] is not None:
                     z_vals[0] = start_pos[2]
 
-        i = 0
+        i = 1
         while i < len(y_vals):
             try:
                 x_vals[i] *= convs[0] / precisions[0]
@@ -1265,7 +1265,6 @@ class MizzouDataTool(QMainWindow):
             else:
                 title = y_selection + " vs. " + x_selection
 
-        
         self.canvas.figure.clear()
 
         figure = self.canvas.figure
@@ -1317,6 +1316,8 @@ class MizzouDataTool(QMainWindow):
             
             with open(path[0], 'rb') as file:
                 pickled_object = pickle.load(file)
+
+            self.canvas.figure.clear()
             
             figure = self.canvas.figure
             if pickled_object.plot_type == 0:
