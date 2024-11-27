@@ -6,9 +6,9 @@ import os
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QLineEdit, QComboBox, QCheckBox, QPushButton, QFileDialog, QTextEdit
+    QLabel, QLineEdit, QComboBox, QCheckBox, QPushButton, QFileDialog, QTextEdit, QDialog
 )
-from PyQt6.QtCore import Qt, QObject, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QObject, QThread, pyqtSignal, QRect
 from PyQt6.QtGui import QPalette, QColor, QFont
 import sys
 import pickle
@@ -777,6 +777,7 @@ class MizzouDataTool(QMainWindow):
         browse_button = QPushButton("Browse")
         generate_df_button = QPushButton("Generate Data Frame")
         save_df_button = QPushButton("Save Data Frame")
+        save_df_button.setObjectName("save_df_button")
         file_path_layout.addWidget(file_path_label)
         file_path_layout.addWidget(self.file_path_input)
         file_path_layout.addWidget(browse_button)
@@ -851,7 +852,14 @@ class MizzouDataTool(QMainWindow):
         self.custom_plot_title_line_edit.setObjectName("custom_plot_title_line_edit")
         self.custom_plot_title_line_edit.setMinimumWidth(250)
         self.extra_options_layout.addWidget(self.custom_plot_title_checkbox, 1, 3, 1, 1)
-        self.extra_options_layout.addWidget(self.custom_plot_title_line_edit, 1, 4, 1, 2)
+        self.extra_options_layout.addWidget(self.custom_plot_title_line_edit, 1, 4, 1, 1)
+
+        self.preset_graphing_dropdown = QComboBox()
+        self.preset_graphing_dropdown.setObjectName("extra_graph_buttons_dropdown")
+        self.preset_graphs = self.get_preset_graphs()
+        self.preset_graphing_dropdown.addItems(self.preset_graphs)
+        self.preset_graphing_dropdown.currentIndexChanged.connect(self.execute_preset_graph)
+        self.extra_options_layout.addWidget(self.preset_graphing_dropdown, 1, 5, 1, 1)
 
         main_layout.addLayout(self.extra_options_layout)
 
@@ -861,7 +869,6 @@ class MizzouDataTool(QMainWindow):
         self.generate_graph_button.clicked.connect(lambda: self.generate_graph(False))
         self.IFL_Button = QPushButton("I'm Feelin Lucky")
         self.IFL_Button.clicked.connect(self.up_all_night)
-
         self.extra_graph_buttons_dropdown = QComboBox()
         self.extra_graph_buttons_dropdown.setObjectName("extra_graph_buttons_dropdown")
         self.extra_graph_options = {  
@@ -869,16 +876,18 @@ class MizzouDataTool(QMainWindow):
                                     "Create Pop Out Graph": self.full_screen_figure, 
                                     "Save Graph": self.save_graph, 
                                     "Open Saved Graph": self.open_saved_graph, 
-                                    "Clear Graph": self.clear_graph
-                                    }
+                                    "Clear Graph": self.clear_graph,
+                                    "Save Preset Graph": self.save_preset_graph,
+                                    "Remove Preset Graph": self.remove_preset_graph
+                                   }
         self.extra_graph_buttons_dropdown.addItems(self.extra_graph_options.keys())
         self.extra_graph_buttons_dropdown.currentIndexChanged.connect(self.execute_extra_graph_button)
         self.zen_mode_button = QPushButton("Toggle Zen Mode")
         self.zen_mode_button.clicked.connect(self.enter_zen_mode)
         self.zen = False
         self.graph_buttons_layout.addWidget(self.generate_graph_button)    
-        self.graph_buttons_layout.addWidget(self.zen_mode_button)
         self.graph_buttons_layout.addWidget(self.IFL_Button)
+        self.graph_buttons_layout.addWidget(self.zen_mode_button)
         self.graph_buttons_layout.addWidget(self.extra_graph_buttons_dropdown)
         main_layout.addLayout(self.graph_buttons_layout)
 
@@ -935,11 +944,14 @@ class MizzouDataTool(QMainWindow):
 
         # Initially disable all elements below file path input
         self.set_elements_enabled(False)
+        self.zen_mode_button.setEnabled(True)
 
         # Connect signals
         browse_button.clicked.connect(self.browse_file)
         generate_df_button.clicked.connect(self.generate_data_frame)
         save_df_button.clicked.connect(self.save_data_frame)
+
+        self.enter_zen_mode()
 
     def set_title_background_color(self, r, g, b):
         """
@@ -1005,6 +1017,7 @@ class MizzouDataTool(QMainWindow):
         conversion_rate_input = QLineEdit()
         conversion_rate_input.setObjectName("conversion_rate_input_" + axis)
         conversion_rate_input.setPlaceholderText("Enter a float")
+        conversion_rate_input.textChanged.connect(lambda: self.update_save_color(axis))
         inputs_grid_layout.addWidget(conversion_rate_label, 0, 0)
         inputs_grid_layout.addWidget(conversion_rate_input, 0, 1)
 
@@ -1014,6 +1027,7 @@ class MizzouDataTool(QMainWindow):
         unit_input = QLineEdit()
         unit_input.setObjectName("unit_input_" + axis)
         unit_input.setPlaceholderText("Enter a unit")
+        unit_input.textChanged.connect(lambda: self.update_save_color(axis))
         inputs_grid_layout.addWidget(unit_label, 0, 2)
         inputs_grid_layout.addWidget(unit_input, 0, 3)
 
@@ -1023,6 +1037,7 @@ class MizzouDataTool(QMainWindow):
         precision_input = QLineEdit()
         precision_input.setObjectName("precision_input_" + axis)
         precision_input.setPlaceholderText("Enter a float")
+        precision_input.textChanged.connect(lambda: self.update_save_color(axis))
         inputs_grid_layout.addWidget(precision_label, 0, 4)
         inputs_grid_layout.addWidget(precision_input, 0, 5)
 
@@ -1034,10 +1049,12 @@ class MizzouDataTool(QMainWindow):
         range_low_input = QLineEdit()
         range_low_input.setObjectName("range_low_input_" + axis)
         range_low_input.setPlaceholderText("LOW")
+        range_low_input.textChanged.connect(lambda: self.update_save_color(axis))
         inputs_range_layout.addWidget(range_low_input)
         range_high_input = QLineEdit()
         range_high_input.setObjectName("range_high_input_" + axis)
         range_high_input.setPlaceholderText("HIGH")
+        range_high_input.textChanged.connect(lambda: self.update_save_color(axis))
         inputs_range_layout.addWidget(range_high_input)
         inputs_grid_layout.addLayout(inputs_range_layout, 1, 1)
 
@@ -1047,6 +1064,7 @@ class MizzouDataTool(QMainWindow):
         max_step_input = QLineEdit()
         max_step_input.setObjectName("max_step_input_" + axis)
         max_step_input.setPlaceholderText("smoothing step")
+        max_step_input.textChanged.connect(lambda: self.update_save_color(axis))
         inputs_grid_layout.addWidget(max_step_label, 1, 2)
         inputs_grid_layout.addWidget(max_step_input, 1, 3)
 
@@ -1056,6 +1074,7 @@ class MizzouDataTool(QMainWindow):
         start_pos_input = QLineEdit()
         start_pos_input.setObjectName("start_pos_input_" + axis)
         start_pos_input.setPlaceholderText("start pos")
+        start_pos_input.textChanged.connect(lambda: self.update_save_color(axis))
         inputs_grid_layout.addWidget(start_pos_label, 1, 4)
         inputs_grid_layout.addWidget(start_pos_input, 1, 5)
 
@@ -1096,6 +1115,10 @@ class MizzouDataTool(QMainWindow):
             self.apply_z_as_color_checkbox.setChecked(False)
             self.log_message("Data Frame has been generated!")
             self.populate_axis_dropdowns(self.data_frame.headers)
+            if os.path.exists(str(self.data_file_path) + '/MONOLITH.CSV'):
+                self.findChild(QWidget, "save_df_button").setStyleSheet("background-color: none")
+            else:
+                self.findChild(QWidget, "save_df_button").setStyleSheet("background-color: #0BA87A")
         else:
             self.log_message("An error occured please make sure that the 3 files needed exist in that directory.")
 
@@ -1110,6 +1133,8 @@ class MizzouDataTool(QMainWindow):
         Placeholder function for saving the data frame.
         """
         self.log_message("Saving data Frame please hold:")
+
+        self.findChild(QWidget, "save_df_button").setStyleSheet("background-color: none")
 
         self.thread = QThread()
 
@@ -1178,6 +1203,11 @@ class MizzouDataTool(QMainWindow):
             if data_type.start_pos == 0: start_pos_input.setText("")
             else: start_pos_input.setText(str(data_type.start_pos))
 
+            self.findChild(QWidget, "save_button_" + axis).setStyleSheet("background-color: none")
+
+    def update_save_color(self, axis):
+        self.findChild(QWidget, "save_button_" + axis).setStyleSheet("background-color: #0BA87A")
+
     def save_settings(self, axis):
         central_widget = self.findChild(QWidget, name = "central_widget")
 
@@ -1224,6 +1254,9 @@ class MizzouDataTool(QMainWindow):
                 return
 
             self.data_frame.headers[selected_item].reinit(unit_text, conversion_rate_text, precision_text, range_low_text, range_high_text, max_step_text, start_pos_text)
+
+            self.findChild(QWidget, "save_button_" + axis).setStyleSheet("background-color: none")
+            self.findChild(QWidget, "save_df_button").setStyleSheet("background-color: #0BA87A")
 
     def generate_graph(self, return_params):
         central_widget = self.findChild(QWidget, name = "central_widget")
@@ -1327,6 +1360,83 @@ class MizzouDataTool(QMainWindow):
         self.extra_graph_options[self.extra_graph_buttons_dropdown.currentText()]()
         self.extra_graph_buttons_dropdown.setCurrentIndex(0)
 
+    def get_preset_graphs(self):
+        ret_list = []
+        ret_list.append("Load Preset Graph")
+        with open("./PRESETS.CSV", "r") as preset_file:
+            if not preset_file:
+                self.log_message("Error: no presets file found")
+                with open("./PRESETS.CSV", "w") as preset_file:
+                    preset_file.write("name,x_selection,y_selection,z_selection,use_z_axis,use_z_axis_as_color")
+            else:
+                # Strip headers (these only exist for user convenience)
+                preset_file.readline().rstrip().split(",")
+                while True:
+                    line = preset_file.readline()
+                    if not line:
+                        break
+                    line = line.rstrip().split(",")
+                    ret_list.append(line[0])
+        return ret_list
+
+    def populate_preset_graph(self, x_sel, y_sel, z_sel, use_z, z_as_color):
+        self.findChild(QWidget, "axis_dropdown_X").setCurrentIndex(self.data_frame.headers[x_sel].index)
+        self.findChild(QWidget, "axis_dropdown_Y").setCurrentIndex(self.data_frame.headers[y_sel].index)
+        self.findChild(QWidget, "axis_dropdown_Z").setCurrentIndex(self.data_frame.headers[z_sel].index)
+        self.use_z_axis_checkbox.setChecked(use_z)
+        self.apply_z_as_color_checkbox.setChecked(z_as_color)
+        self.generate_graph(False)
+
+    def execute_preset_graph(self):
+        if self.preset_graphing_dropdown.currentIndex() == 0: return
+        selection = self.preset_graphing_dropdown.currentText()
+        with open("./PRESETS.CSV", "r") as preset_file:
+            # Strip headers (these only exist for user convenience)
+            preset_file.readline().rstrip().split(",")
+            while True:
+                line = preset_file.readline()
+                if not line:
+                    break
+                line = line.rstrip().split(",")
+                if line[0] == selection:
+                    self.populate_preset_graph(x_sel=line[1], y_sel=line[2], z_sel=line[3], use_z= line[4]=="True", z_as_color= line[5]=="True")
+        self.preset_graphing_dropdown.setCurrentIndex(0)
+
+    def save_preset_graph(self):
+        save_preset_dialog = SavePresetPopoutWindow(self)
+        if save_preset_dialog.exec() == QDialog.DialogCode.Accepted:
+            preset_name = save_preset_dialog.get_name()
+
+            with open("./PRESETS.CSV", "a") as presets_file:
+                x_sel = self.findChild(QWidget, "axis_dropdown_X").currentText()
+                y_sel = self.findChild(QWidget, "axis_dropdown_Y").currentText()
+                z_sel = self.findChild(QWidget, "axis_dropdown_Z").currentText()
+                use_z = self.use_z_axis_checkbox.isChecked()
+                z_as_color = self.apply_z_as_color_checkbox.isChecked()
+                line = ",".join([preset_name, x_sel, y_sel, z_sel, str(use_z), str(z_as_color)]) + "\n"
+                presets_file.write(line)
+            self.log_message("Preset sucesssfully saved!")
+            self.preset_graphs = self.get_preset_graphs()
+            self.preset_graphing_dropdown.clear()
+            self.preset_graphing_dropdown.addItems(self.preset_graphs)
+
+    def remove_preset_graph(self):
+        remove_preset_dialog = RemovePresetPopoutWindow(self.preset_graphs, self)
+        if remove_preset_dialog.exec() == QDialog.DialogCode.Accepted:
+            preset_name = remove_preset_dialog.get_name()
+            with open("./PRESETS.CSV", "r") as presets_file:
+                presets = presets_file.readlines()
+            with open("./PRESETS.CSV", "w") as presets_file:
+                for preset in presets:
+                    if preset.rstrip().split(",")[0] != preset_name:
+                        presets_file.write(preset)
+
+            self.log_message("Preset sucesssfully removed!")
+
+            self.preset_graphs = self.get_preset_graphs()
+            self.preset_graphing_dropdown.clear()
+            self.preset_graphing_dropdown.addItems(self.preset_graphs)
+
     def swap_headers(self):
         # Make function here to swap headers in two boxes, provided that they are both valid headers
         # Make sure to have popup confirmation windown which requires a second confirmation with some added text to avoid accidental swaps
@@ -1396,8 +1506,10 @@ class MizzouDataTool(QMainWindow):
             self.enforce_square_graph_checkbox.hide()
             self.delete_till_in_range_checkbox.hide()
             self.line_between_points_checkbox.hide()
+            self.use_custom_range_checkbox.hide()
             self.custom_plot_title_checkbox.hide()
             self.custom_plot_title_line_edit.hide()
+            self.preset_graphing_dropdown.hide()
             self.extra_options_layout.removeWidget(self.apply_z_as_color_checkbox)
             self.extra_options_layout.addWidget(self.apply_z_as_color_checkbox, 0, 2)
 
@@ -1460,8 +1572,10 @@ class MizzouDataTool(QMainWindow):
             self.enforce_square_graph_checkbox.show()
             self.delete_till_in_range_checkbox.show()
             self.line_between_points_checkbox.show()
+            self.use_custom_range_checkbox.show()
             self.custom_plot_title_checkbox.show()
             self.custom_plot_title_line_edit.show()
+            self.preset_graphing_dropdown.show()
             self.extra_options_layout.removeWidget(self.apply_z_as_color_checkbox)
             self.extra_options_layout.addWidget(self.apply_z_as_color_checkbox, 1, 0, 1, 2)
 
@@ -1878,6 +1992,55 @@ class BreakoutWindow(QMainWindow):
             plot.set_zlim(center_z - max_range, center_z + max_range)
             plot.set_box_aspect(1)
         else: plot.set_box_aspect(None)
+
+class SavePresetPopoutWindow(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Save Preset")
+        self.setGeometry(parent.x() + parent.width()//2 - 150, parent.y() + parent.height()//2 - 50, 300, 100)
+
+        # Layout and widgets
+        self.layout = QVBoxLayout()
+        self.preset_name_label = QLabel("Enter Preset Name:")
+        self.preset_name_input = QLineEdit()
+        self.confirm_button = QPushButton("Save")
+
+        # Add widgets to layout
+        self.layout.addWidget(self.preset_name_label)
+        self.layout.addWidget(self.preset_name_input)
+        self.layout.addWidget(self.confirm_button)
+        self.setLayout(self.layout)
+
+        # Connect button signal
+        self.confirm_button.clicked.connect(self.accept)
+
+    def get_name(self):
+        """Return the entered text when dialog is accepted."""
+        return self.preset_name_input.text()
+    
+class RemovePresetPopoutWindow(QDialog):
+    def __init__(self, names, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Remove Preset")
+        self.setGeometry(parent.x() + parent.width()//2 - 150, parent.y() + parent.height()//2 - 50, 300, 100)
+
+        # Layout and widgets
+        self.layout = QVBoxLayout()
+        self.preset_name_dropdown = QComboBox()
+        self.preset_name_dropdown.addItems(names)
+        self.confirm_button = QPushButton("Remove")
+
+        # Add widgets to layout
+        self.layout.addWidget(self.preset_name_dropdown)
+        self.layout.addWidget(self.confirm_button)
+        self.setLayout(self.layout)
+
+        # Connect button signal
+        self.confirm_button.clicked.connect(self.accept)
+
+    def get_name(self):
+        """Return the entered text when dialog is accepted."""
+        return self.preset_name_dropdown.currentText()
 
 matplotlib.use('Qt5Agg')
 
