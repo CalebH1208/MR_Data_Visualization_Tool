@@ -300,7 +300,7 @@ class Dataframe:
         
         load_config()
 
-    def make_plot_2D(self, figure, names, plot_title, remove_data_till_in_range, enable_grid, use_custom_range, enforce_square, connect_lines, saved_graph = False, x_data = None, x_passType = None, y_data = None, y_passType = None):
+    def make_plot_2D(self, figure, names, plot_title, remove_data_till_in_range, enable_grid, enforce_square, connect_lines, saved_graph = False, x_data = None, x_passType = None, y_data = None, y_passType = None):
         if not saved_graph:
             x_dataType = self.headers[names[0]]
             y_dataType = self.headers[names[1]]
@@ -377,12 +377,6 @@ class Dataframe:
         plot.set_ylabel(names[1] + y_unit)
         plot.set_title(plot_title)
         plot.grid(enable_grid)
-
-        if use_custom_range:
-            x_scale = (x_dataType.range_high - x_dataType.range_low) * 0.1 / 2
-            y_scale = (y_dataType.range_high - y_dataType.range_low) * 0.1 / 2
-            plot.set_xlim(x_dataType.range_low - x_scale, x_dataType.range_high + x_scale)
-            plot.set_ylim(y_dataType.range_low - y_scale, y_dataType.range_high + y_scale)
         
         if enforce_square:
             max_range = max(
@@ -398,7 +392,7 @@ class Dataframe:
             plot.set_box_aspect(1)
         else: plot.set_box_aspect(None)
     
-    def make_plot_3D_color(self, figure, names, plot_title, remove_data_till_in_range, enable_grid, use_custom_range, enforce_square, connect_lines, saved_graph = False, x_data = None, x_passType = None, y_data = None, y_passType = None, z_data = None, z_passType = None):
+    def make_plot_3D_color(self, figure, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, connect_lines, saved_graph = False, x_data = None, x_passType = None, y_data = None, y_passType = None, z_data = None, z_passType = None):
         if not saved_graph:
             x_dataType = self.headers[names[0]]
             y_dataType = self.headers[names[1]]
@@ -515,12 +509,8 @@ class Dataframe:
         color_scale_low = None
         color_scale_high = None
 
-        if use_custom_range:
-            x_scale = (x_dataType.range_high - x_dataType.range_low) * 0.1 / 2
-            y_scale = (y_dataType.range_high - y_dataType.range_low) * 0.1 / 2
+        if enforce_color_range:
             color_scale = (color_dataType.range_high - color_dataType.range_low) * 0.1 / 2
-            plot.set_xlim(x_dataType.range_low - x_scale, x_dataType.range_high + x_scale)
-            plot.set_ylim(y_dataType.range_low - y_scale, y_dataType.range_high + y_scale)
             color_scale_low = color_dataType.range_low - color_scale
             color_scale_high = color_dataType.range_high + color_scale
 
@@ -555,7 +545,7 @@ class Dataframe:
             plot.set_box_aspect(1)
         else: plot.set_box_aspect(None)
 
-    def make_plot_3D(self, figure, names, plot_title, remove_data_till_in_range, enable_grid, use_custom_range, enforce_cube, connect_lines, saved_graph = False, x_data = None, x_passType = None, y_data = None, y_passType = None, z_data = None, z_passType = None):
+    def make_plot_3D(self, figure, names, plot_title, remove_data_till_in_range, enable_grid, enforce_cube, connect_lines, saved_graph = False, x_data = None, x_passType = None, y_data = None, y_passType = None, z_data = None, z_passType = None):
         if not saved_graph:
             x_dataType = self.headers[names[0]]
             y_dataType = self.headers[names[1]]
@@ -673,14 +663,6 @@ class Dataframe:
         plot.set_ylabel(labels[1])
         plot.set_zlabel(labels[2])
 
-        if use_custom_range:
-            x_scale = (x_dataType.range_high - x_dataType.range_low) * 0.1 / 2
-            y_scale = (y_dataType.range_high - y_dataType.range_low) * 0.1 / 2
-            z_scale = (z_dataType.range_high - z_dataType.range_low) * 0.1 / 2
-            plot.set_xlim(x_dataType.range_low - x_scale, x_dataType.range_high + x_scale)
-            plot.set_ylim(y_dataType.range_low - y_scale, y_dataType.range_high + y_scale)
-            plot.set_zlim(z_dataType.range_low - z_scale, z_dataType.range_high + z_scale)
-
         # Scatter plot for the 3D data
 
         plot.scatter(x_vals, y_vals, z_vals, edgecolor='none', alpha=0.8)
@@ -721,7 +703,7 @@ class MplCanvas(FigureCanvasQTAgg):
         super().__init__(fig)
 
 class SavedGraph:
-    def __init__(self, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, use_custom_range, enforce_square, enable):
+    def __init__(self, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable):
         self.x_data = x_data
         self.x_dataType = x_dataType
         self.y_data = y_data
@@ -733,7 +715,7 @@ class SavedGraph:
         self.plot_title = plot_title
         self.remove_till_in_range = remove_data_till_in_range
         self.enable_grid = enable_grid
-        self.use_custom_range = use_custom_range
+        self.enforce_color_range = enforce_color_range
         self.enforce_square = enforce_square
         self.enable = enable
 
@@ -748,8 +730,8 @@ class MizzouDataTool(QMainWindow):
         self.setWindowTitle("Mizzou Data Tool")
 
         # Set the minimum dimensions of the window
-        self.setMinimumWidth(750)
-        self.setMinimumHeight(500)
+        self.setMinimumWidth(1080)
+        self.setMinimumHeight(720)
 
         # Class variable to control visibility
         self.data_frame_generated = False
@@ -815,8 +797,8 @@ class MizzouDataTool(QMainWindow):
         self.use_z_axis_checkbox.stateChanged.connect(self.toggle_z_axis)
         self.toggle_z_axis(False)
         self.apply_z_as_color_checkbox = QCheckBox("Apply Z-Axis as Color")
-        self.extra_options_layout.addWidget(self.use_z_axis_checkbox, 0, 0, 1, 2)
-        self.extra_options_layout.addWidget(self.apply_z_as_color_checkbox, 1, 0, 1, 2)
+        self.extra_options_layout.addWidget(self.use_z_axis_checkbox, 0, 0)
+        self.extra_options_layout.addWidget(self.apply_z_as_color_checkbox, 1, 0)
 
         # Enable Grid Lines and Enforce Square Chech Boxes
         self.enable_grid_lines_checkbox = QCheckBox("Enable Grid Lines")
@@ -824,42 +806,42 @@ class MizzouDataTool(QMainWindow):
         self.enable_grid_lines_checkbox.setObjectName("enable_grid_lines_checkbox")
         self.enforce_square_graph_checkbox = QCheckBox("Enforce Square Graph")
         self.enforce_square_graph_checkbox.setObjectName("enforce_square_graph_checkbox")
-        self.extra_options_layout.addWidget(self.enable_grid_lines_checkbox, 0, 2, 1, 2)
-        self.extra_options_layout.addWidget(self.enforce_square_graph_checkbox, 1, 2, 1, 2)
+        self.extra_options_layout.addWidget(self.enable_grid_lines_checkbox, 0, 1)
+        self.extra_options_layout.addWidget(self.enforce_square_graph_checkbox, 1, 1)
 
         # Delete Till in Range
         self.delete_till_in_range_checkbox = QCheckBox("Remove Data Until in Range")
         self.delete_till_in_range_checkbox.setChecked(True)
         self.delete_till_in_range_checkbox.setObjectName("delete_till_in_range_checkbox")
-        self.extra_options_layout.addWidget(self.delete_till_in_range_checkbox, 0, 3, 1, 2)
+        self.extra_options_layout.addWidget(self.delete_till_in_range_checkbox, 0, 2)
 
         # Draw Line Between Points on Graph
         self.line_between_points_checkbox = QCheckBox("Line Between Points")
         self.line_between_points_checkbox.setChecked(False)
         self.line_between_points_checkbox.setObjectName("line_between_points_checkbox")
-        self.extra_options_layout.addWidget(self.line_between_points_checkbox, 0, 4, 1, 1)
+        self.extra_options_layout.addWidget(self.line_between_points_checkbox, 0, 3)
 
         # Make Graph Edges Equal to Range
-        self.use_custom_range_checkbox = QCheckBox("Enforce Graph Range")
-        self.use_custom_range_checkbox.setChecked(False)
-        self.use_custom_range_checkbox.setObjectName("use_custom_range_checkbox")
-        self.extra_options_layout.addWidget(self.use_custom_range_checkbox, 0, 5, 1, 1)
+        self.enforce_color_range_checkbox = QCheckBox("Enforce Color Range")
+        self.enforce_color_range_checkbox.setChecked(False)
+        self.enforce_color_range_checkbox.setObjectName("enforce_color_range_checkbox")
+        self.extra_options_layout.addWidget(self.enforce_color_range_checkbox, 0, 4)
 
         # Use Custom Plot Title
         self.custom_plot_title_checkbox = QCheckBox("Use Custom Plot Title")
         self.custom_plot_title_line_edit = QLineEdit()
         self.custom_plot_title_line_edit.setPlaceholderText("Custom Plot Title")
         self.custom_plot_title_line_edit.setObjectName("custom_plot_title_line_edit")
-        self.custom_plot_title_line_edit.setMinimumWidth(250)
-        self.extra_options_layout.addWidget(self.custom_plot_title_checkbox, 1, 3, 1, 1)
-        self.extra_options_layout.addWidget(self.custom_plot_title_line_edit, 1, 4, 1, 1)
+        self.custom_plot_title_line_edit.setMaximumWidth(self.width()//4)
+        self.extra_options_layout.addWidget(self.custom_plot_title_checkbox, 1, 2)
+        self.extra_options_layout.addWidget(self.custom_plot_title_line_edit, 1, 3)
 
         self.preset_graphing_dropdown = QComboBox()
         self.preset_graphing_dropdown.setObjectName("extra_graph_buttons_dropdown")
         self.preset_graphs = self.get_preset_graphs()
         self.preset_graphing_dropdown.addItems(self.preset_graphs)
         self.preset_graphing_dropdown.currentIndexChanged.connect(self.execute_preset_graph)
-        self.extra_options_layout.addWidget(self.preset_graphing_dropdown, 1, 5, 1, 1)
+        self.extra_options_layout.addWidget(self.preset_graphing_dropdown, 1, 4)
 
         main_layout.addLayout(self.extra_options_layout)
 
@@ -1270,7 +1252,7 @@ class MizzouDataTool(QMainWindow):
         z_enabled = self.use_z_axis_checkbox.isChecked()
         z_color = self.apply_z_as_color_checkbox.isChecked()
         enable_grid = central_widget.findChild(QWidget, "enable_grid_lines_checkbox").isChecked()
-        use_custom_range = central_widget.findChild(QWidget, "use_custom_range_checkbox").isChecked()
+        enforce_color_range = central_widget.findChild(QWidget, "enforce_color_range_checkbox").isChecked()
         enforce_square = central_widget.findChild(QWidget, "enforce_square_graph_checkbox").isChecked()
         remove_till_in_range = central_widget.findChild(QWidget, "delete_till_in_range_checkbox").isChecked()
         use_custom_title = self.custom_plot_title_checkbox.isChecked()
@@ -1290,11 +1272,11 @@ class MizzouDataTool(QMainWindow):
         try:
             if not return_params:
                 if not z_enabled:
-                    self.data_frame.make_plot_2D(figure, [x_selection, y_selection], title, remove_till_in_range, enable_grid, use_custom_range, enforce_square, use_lines)
+                    self.data_frame.make_plot_2D(figure, [x_selection, y_selection], title, remove_till_in_range, enable_grid, enforce_square, use_lines)
                 elif z_color:
-                    self.data_frame.make_plot_3D_color(figure, [x_selection, y_selection, z_selection], title, remove_till_in_range, enable_grid, use_custom_range, enforce_square, use_lines)
+                    self.data_frame.make_plot_3D_color(figure, [x_selection, y_selection, z_selection], title, remove_till_in_range, enable_grid, enforce_color_range, enforce_square, use_lines)
                 else:
-                    self.data_frame.make_plot_3D(figure, [x_selection, y_selection, z_selection], title, remove_till_in_range, enable_grid, use_custom_range, enforce_square, use_lines)
+                    self.data_frame.make_plot_3D(figure, [x_selection, y_selection, z_selection], title, remove_till_in_range, enable_grid, enforce_square, use_lines)
                 self.canvas.draw()
             else:
                 x_dataType = self.data_frame.headers[x_selection]
@@ -1306,23 +1288,22 @@ class MizzouDataTool(QMainWindow):
                 if not z_enabled: plot_type = 0
                 elif z_color: plot_type = 1
                 else: plot_type = 2
-                return x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, [x_selection, y_selection, z_selection], title, remove_till_in_range, enable_grid, use_custom_range, enforce_square, use_lines
+                return x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, [x_selection, y_selection, z_selection], title, remove_till_in_range, enable_grid, enforce_color_range, enforce_square, use_lines
         except Exception as e:
             self.log_message("Don't do that!!!")
             self.log_message(str(e))
 
     def full_screen_figure(self):
             w = BreakoutWindow()
-            x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, use_custom_range, enforce_square, enable = self.generate_graph(True)
-            w.fullscreen_graph(x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, use_custom_range, enforce_square, enable)
+            x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable = self.generate_graph(True)
+            w.fullscreen_graph(x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable)
             w.show_new_window()
             self.array_window.append(w)
 
     def save_graph(self):
-        # TODO: save graph as plot object?
         try:
-            x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, use_custom_range, enforce_square, enable = self.generate_graph(True)
-            save = SavedGraph(x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, use_custom_range, enforce_square, enable)
+            x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable = self.generate_graph(True)
+            save = SavedGraph(x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable)
             name,ft = QFileDialog.getSaveFileName(self, "Save :)", "./","Mizzou Racing Graph Object (*.MRGO)")
             with open(name, 'wb') as file:
                 pickle.dump(save,file)
@@ -1342,8 +1323,8 @@ class MizzouDataTool(QMainWindow):
                 self.data_frame.make_plot_2D(figure, pickled_object.names, pickled_object.plot_title, pickled_object.remove_till_in_range, pickled_object.enable_grid, pickled_object.enforce_square, pickled_object.enable,
                 True, pickled_object.x_data, pickled_object.x_dataType, pickled_object.y_data, pickled_object.y_dataType)
             elif pickled_object.plot_type == 1:
-                self.data_frame.make_plot_3D_color(figure, pickled_object.names, pickled_object.plot_title, pickled_object.remove_till_in_range, pickled_object.enable_grid, pickled_object.enforce_square, pickled_object.enable,
-                True, pickled_object.x_data, pickled_object.x_dataType, pickled_object.y_data, pickled_object.y_dataType, pickled_object.z_data, pickled_object.z_dataType)
+                self.data_frame.make_plot_3D_color(figure, pickled_object.names, pickled_object.plot_title, pickled_object.remove_till_in_range, pickled_object.enable_grid, pickled_object.enforce_color_range, pickled_object.enforce_square, 
+                pickled_object.enable, True, pickled_object.x_data, pickled_object.x_dataType, pickled_object.y_data, pickled_object.y_dataType, pickled_object.z_data, pickled_object.z_dataType)
             else:
                 self.data_frame.make_plot_3D(figure, pickled_object.names, pickled_object.plot_title, pickled_object.remove_till_in_range, pickled_object.enable_grid, pickled_object.enforce_square, pickled_object.enable,
                 True, pickled_object.x_data, pickled_object.x_dataType, pickled_object.y_data, pickled_object.y_dataType, pickled_object.z_data, pickled_object.z_dataType)
@@ -1506,12 +1487,12 @@ class MizzouDataTool(QMainWindow):
             self.enforce_square_graph_checkbox.hide()
             self.delete_till_in_range_checkbox.hide()
             self.line_between_points_checkbox.hide()
-            self.use_custom_range_checkbox.hide()
+            self.enforce_color_range_checkbox.hide()
             self.custom_plot_title_checkbox.hide()
             self.custom_plot_title_line_edit.hide()
             self.preset_graphing_dropdown.hide()
             self.extra_options_layout.removeWidget(self.apply_z_as_color_checkbox)
-            self.extra_options_layout.addWidget(self.apply_z_as_color_checkbox, 0, 2)
+            self.extra_options_layout.addWidget(self.apply_z_as_color_checkbox, 0, 1)
 
             self.extra_graph_buttons_dropdown.hide()
 
@@ -1572,12 +1553,12 @@ class MizzouDataTool(QMainWindow):
             self.enforce_square_graph_checkbox.show()
             self.delete_till_in_range_checkbox.show()
             self.line_between_points_checkbox.show()
-            self.use_custom_range_checkbox.show()
+            self.enforce_color_range_checkbox.show()
             self.custom_plot_title_checkbox.show()
             self.custom_plot_title_line_edit.show()
             self.preset_graphing_dropdown.show()
             self.extra_options_layout.removeWidget(self.apply_z_as_color_checkbox)
-            self.extra_options_layout.addWidget(self.apply_z_as_color_checkbox, 1, 0, 1, 2)
+            self.extra_options_layout.addWidget(self.apply_z_as_color_checkbox, 1, 0)
 
             self.extra_graph_buttons_dropdown.show()
 
@@ -1617,21 +1598,21 @@ class BreakoutWindow(QMainWindow):
         main_layout.addWidget(self.toolbar) 
         main_layout.addWidget(self.canvas)
         
-    def fullscreen_graph(self, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, use_custom_range, enforce_square, enable):
+    def fullscreen_graph(self, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable):
 
         self.canvas.figure.clear()
         figure = self.canvas.figure
 
-        if plot_type == 0: self.make_plot_2D(figure, x_data, x_dataType, y_data, y_dataType, names, plot_title, remove_data_till_in_range, enable_grid, use_custom_range, enforce_square, enable)
-        elif plot_type == 1: self.make_plot_3D_color(figure, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, names, plot_title, remove_data_till_in_range, enable_grid, use_custom_range, enforce_square, enable)
-        else: self.make_plot_3D(figure, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, names, plot_title, remove_data_till_in_range, enable_grid, use_custom_range, enforce_square, enable)
+        if plot_type == 0: self.make_plot_2D(figure, x_data, x_dataType, y_data, y_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_square, enable)
+        elif plot_type == 1: self.make_plot_3D_color(figure, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable)
+        else: self.make_plot_3D(figure, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_square, enable)
 
         self.canvas.draw()
 
     def show_new_window(self):
         self.showMaximized()
 
-    def make_plot_2D(self, figure, x_vals, x_dataType, y_vals, y_dataType, names, plot_title, remove_data_till_in_range, enable_grid, use_custom_range, enforce_square, enable_lines):
+    def make_plot_2D(self, figure, x_vals, x_dataType, y_vals, y_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_square, enable_lines):
         if remove_data_till_in_range:
             while True:
                 x_vals[0] *= x_dataType.conv / x_dataType.precision
@@ -1697,12 +1678,6 @@ class BreakoutWindow(QMainWindow):
         plot.set_title(plot_title)
         plot.grid(enable_grid)
 
-        if use_custom_range:
-            x_scale = (x_dataType.range_high - x_dataType.range_low) * 0.1 / 2
-            y_scale = (y_dataType.range_high - y_dataType.range_low) * 0.1 / 2
-            plot.set_xlim(x_dataType.range_low - x_scale, x_dataType.range_high + x_scale)
-            plot.set_ylim(y_dataType.range_low - y_scale, y_dataType.range_high + y_scale)
-
         if enforce_square:
             max_range = max(
                 max(x_vals) - min(x_vals), 
@@ -1717,7 +1692,7 @@ class BreakoutWindow(QMainWindow):
             plot.set_box_aspect(1)
         else: plot.set_box_aspect(None)
     
-    def make_plot_3D_color(self, figure, x_vals, x_dataType, y_vals, y_dataType, color_vals, color_dataType, names, plot_title, remove_data_till_in_range, enable_grid, use_custom_range, enforce_square, enable_lines):
+    def make_plot_3D_color(self, figure, x_vals, x_dataType, y_vals, y_dataType, color_vals, color_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable_lines):
         ranges = [
             [x_dataType.range_low, x_dataType.range_high],
             [y_dataType.range_low, y_dataType.range_high],
@@ -1816,12 +1791,8 @@ class BreakoutWindow(QMainWindow):
         color_scale_low = None
         color_scale_high = None
 
-        if use_custom_range:
-            x_scale = (x_dataType.range_high - x_dataType.range_low) * 0.1 / 2
-            y_scale = (y_dataType.range_high - y_dataType.range_low) * 0.1 / 2
+        if enforce_color_range:
             color_scale = (color_dataType.range_high - color_dataType.range_low) * 0.1 / 2
-            plot.set_xlim(x_dataType.range_low - x_scale, x_dataType.range_high + x_scale)
-            plot.set_ylim(y_dataType.range_low - y_scale, y_dataType.range_high + y_scale)
             color_scale_low = color_dataType.range_low - color_scale
             color_scale_high = color_dataType.range_high + color_scale
 
@@ -1859,7 +1830,7 @@ class BreakoutWindow(QMainWindow):
             plot.set_box_aspect(1)
         else: plot.set_box_aspect(None)
 
-    def make_plot_3D(self, figure, x_vals, x_dataType, y_vals, y_dataType, z_vals, z_dataType, names, plot_title, remove_data_till_in_range, enable_grid, use_custom_range, enforce_cube, enable_lines):
+    def make_plot_3D(self, figure, x_vals, x_dataType, y_vals, y_dataType, z_vals, z_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_cube, enable_lines):
         convs = [x_dataType.conv, y_dataType.conv, z_dataType.conv]
         ranges = [
             [x_dataType.range_low, x_dataType.range_high],
@@ -1958,14 +1929,6 @@ class BreakoutWindow(QMainWindow):
         plot.set_xlabel(labels[0])
         plot.set_ylabel(labels[1])
         plot.set_zlabel(labels[2])
-
-        if use_custom_range:
-            x_scale = (x_dataType.range_high - x_dataType.range_low) * 0.1 / 2
-            y_scale = (y_dataType.range_high - y_dataType.range_low) * 0.1 / 2
-            z_scale = (z_dataType.range_high - z_dataType.range_low) * 0.1 / 2
-            plot.set_xlim(x_dataType.range_low - x_scale, x_dataType.range_high + x_scale)
-            plot.set_ylim(y_dataType.range_low - y_scale, y_dataType.range_high + y_scale)
-            plot.set_zlim(z_dataType.range_low - z_scale, z_dataType.range_high + z_scale)
 
         # Scatter plot for the 3D data
         plot.scatter(x_vals, y_vals, z_vals, edgecolor='none', alpha=0.8)
