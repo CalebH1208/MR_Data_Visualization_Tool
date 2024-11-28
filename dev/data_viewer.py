@@ -1,3 +1,15 @@
+##################################################
+# Mizzou Racing Data Visualization Tool
+# Created by Caleb Harris and Justin Bowers
+# First Revision: 26 Nov 2024
+# GitHub: CalebH1208/MR_Data_Visualization_Tool
+# 
+# This is a data visualization tool designed to be
+# used alongside the Mizzou Racing data collection
+# system. Any CSV can be used provided that the
+# "Time" column exists, is unique, and is sorted.
+##################################################
+
 import random
 import os
 os.environ["QT_API"] = "PyQt6"
@@ -13,6 +25,25 @@ from PyQt6.QtGui import QPalette, QColor, QFont
 import sys
 import pickle
 
+#################################################
+# Class: DataType
+# Attributes: 
+#   index: The location of this header in the CSV
+#   unit: Str for the unit of the data displayed
+#   conv: Float multiplier applied to data to
+#    convert between units
+#   precision: Factor of 10 for floating point,
+#    used for ints transmitted in 10x or 100x
+#   range_low: Lower bound for data, applied
+#    after the unit/precision conversion
+#   range_high: Upper bound for data, applied
+#    after the unit/precision conversion
+#   max_step: The largest allowable step per unit
+#    of time for data. Like a low pass filter
+#   start_pos: A default starting value for data
+# Methods:
+#   reinit(): allows resetting of all attributes
+#################################################
 class DataType:
     def __init__(self, index = 0, unit = 'unknown', conv = 1, precision = 1, range_low = -18446744073709551615, range_high = 18446744073709551615, max_step = 18446744073709551615, start_pos = 0):
         self.index = index
@@ -42,6 +73,23 @@ class DataType:
     def setPrecision(self, prc):
         self.precision = prc
 
+#################################################
+# Class: Dataframe
+# Attributes: 
+#   header_version: The version of the data being
+#    read in. v1 is a "normal" CSV w/ name header
+#    and v2 encodes the DataType attributes into
+#    the CSV.
+#   headers: Dict for all headers stored as
+#    name: DataType.
+#   df: 2D array for actual data being stored
+#   restarts: array to hold where in CSV there
+#    are restarts occurring.
+#   fill_headers: dict storing which headers
+#    need interpolating for the different logging
+#    speeds.
+#   dir_path: Path to search for and store data
+#################################################
 class Dataframe:
     def __init__(self):
         self.header_version = 1
@@ -57,6 +105,7 @@ class Dataframe:
             print(line)
         return ""
     
+    # Function to create a buffer str from the headers, used to store these values into a CSV
     def headers_to_CSV(self):
         buf = ""
         buf += ','.join([str(header) for header in self.headers]) + '\n'
@@ -69,11 +118,13 @@ class Dataframe:
         buf += ','.join([str(self.headers[header].start_pos) for header in self.headers]) + '\n'
         return buf
     
+    # Function to convert the stored data into a CSV format for storing. Returns a string
     def data_to_CSV(self):
         buf = ""
         buf += '\n'.join([','.join([str(item) for item in line]) for line in self.df])
         return buf
     
+    # Function which attempts to save all data in header v2 format into a "MONOLITH.CSV" file
     def save_data(self):
         if self.dir_path == "":
             return False
@@ -88,10 +139,17 @@ class Dataframe:
             return False
         return True
 
+    # Main function of this class, which attempts to load the data in the Mizzou Racing data format
+    # and interpolates data points from the lower HZ log files based on the "Time" column,
+    # resulting in one Dataframe which is rectangular and holds all data.
+    # This funciton will first attempt to read from the MONOLITH.CSV file, then defaults to
+    # "1HZLOG.CSV", "10HZLOG.CSV", and "100HZLOG.CSV"
     def parse_data(self, dir_path):
+        # Function which searches for the existance of the MONOLITH.CSV file
         def detect_monolith(dir_path):
             return os.path.exists(dir_path + "/MONOLITH.CSV")
 
+        # Function which takes a list and attempts to cast all values in that list to a float
         def convert_list_to_num(lst):
             result = []
             for item in lst:
@@ -101,6 +159,7 @@ class Dataframe:
                     result.append(item)
             return result
 
+        # Function which searches the default files for which version of header is being used
         def detect_header(path):
             with open(path + "/100HZLOG.CSV") as file:
                 for line in file:
@@ -111,6 +170,7 @@ class Dataframe:
                         return 1
                 return 0
 
+        # Function which reads in and creates the DataType object from a header v1 (basic CSV)
         def header_v1(file):
             temp_dict = {}
 
@@ -121,6 +181,8 @@ class Dataframe:
                 temp_dict[names[i]] = DataType(index=(i))
             return temp_dict
 
+        # Function which reads in teh header v2 format, which consists of four header lines.
+        # These are names, units, conversion rates, and precision (all described above)
         def header_v2(file):
             temp_dict = {}
 
@@ -134,6 +196,9 @@ class Dataframe:
                 temp_dict[names[i]] = DataType(i, units[i], conversions[i], precisions[i])
             return temp_dict
         
+        # Function which inserts values from the given line into the data. This is used as the
+        # logging rates are uneven, so data must be filled in to the nearest time value from the
+        # lower HZ values into the higher HZ values.
         def insert_value(line, start):
             time = line.pop(0)
             ret = 0
@@ -147,6 +212,8 @@ class Dataframe:
                 ret = -1
             return ret
         
+        # Function which takes the lower HZ files and fills that data into the larger HZ data,
+        # appending all new headers and ignoring repeated headers (such as time)
         def low_HZ_append(file):
             header_remove_dict = {}
             offset_loc = 0
@@ -188,6 +255,8 @@ class Dataframe:
                 if start == -1:
                     break
 
+        # Function which is used to read in the data in the event no MONOLITH.CSV has been
+        # created yet. The default files then are 1HZLOG, 10HZLOG, and 100HZLOG
         def no_monolith():
             file1 = open(dir_path + '/1HZLOG.CSV', 'r')
             file10 = open(dir_path + '/10HZLOG.CSV', 'r')
@@ -243,6 +312,8 @@ class Dataframe:
 
             self.df.pop()
 
+        # Function which reads in the data from the MONOLITH.CSV, in teh header v2 format with
+        # additional ranges, max_step, and start_vals
         def read_monolith():
             monolith = open(dir_path + '/MONOLITH.CSV', 'r')
 
@@ -268,6 +339,10 @@ class Dataframe:
                 if None not in line:
                     self.df.append(line)
             
+        # Function to load in the config file into the DataTypes. This file is a global
+        # configuration and not meant to edited by the regular user. If other FSAE teams are
+        # using this project, it is highly recommended that this file be edited once to match
+        # the format of your data, then distributed to all team members using this program
         def load_config():
             config_file = "./CONFIG.CSV"
             config = {}
@@ -291,15 +366,21 @@ class Dataframe:
                     self.headers[header].max_step = config[header][5]
                     self.headers[header].start_pos = config[header][6]
 
+        # Set global path
         self.dir_path = dir_path
 
+        # Search for a MONOLITH.CSV in the path, and if found then read it in,
+        # else, read in from the three default files
         if(detect_monolith(dir_path)):
             read_monolith()
         else:
             no_monolith()
         
+        # Finally, load in the config file
         load_config()
 
+    # Function to make a 2D Matplotlib plot with the given options. If the optional parameters are
+    # passed, the data and dataTypes passed will be used, otherwise the stored data is used
     def make_plot_2D(self, figure, names, plot_title, remove_data_till_in_range, enable_grid, enforce_square, connect_lines, saved_graph = False, x_data = None, x_passType = None, y_data = None, y_passType = None):
         if not saved_graph:
             x_dataType = self.headers[names[0]]
@@ -392,6 +473,9 @@ class Dataframe:
             plot.set_box_aspect(1)
         else: plot.set_box_aspect(None)
     
+    # Function to make a 2D Matplotlib plot with the given options and colored by a 3rd dimension. 
+    # If the optional parameters are passed, the data and dataTypes passed will be used, otherwise
+    # the stored data is used
     def make_plot_3D_color(self, figure, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, connect_lines, saved_graph = False, x_data = None, x_passType = None, y_data = None, y_passType = None, z_data = None, z_passType = None):
         if not saved_graph:
             x_dataType = self.headers[names[0]]
@@ -545,6 +629,8 @@ class Dataframe:
             plot.set_box_aspect(1)
         else: plot.set_box_aspect(None)
 
+    # Function to make a 3D Matplotlib plot with the given options. If the optional parameters are
+    # passed, the data and dataTypes passed will be used, otherwise the stored data is used
     def make_plot_3D(self, figure, names, plot_title, remove_data_till_in_range, enable_grid, enforce_cube, connect_lines, saved_graph = False, x_data = None, x_passType = None, y_data = None, y_passType = None, z_data = None, z_passType = None):
         if not saved_graph:
             x_dataType = self.headers[names[0]]
@@ -690,6 +776,7 @@ class Dataframe:
             plot.set_box_aspect((1,1,1))
         else: plot.set_box_aspect(None)
 
+# Worker class used to async run functions
 class Worker(QObject):
     finished = pyqtSignal(bool)
 
@@ -697,11 +784,14 @@ class Worker(QObject):
         result = function()  
         self.finished.emit(result)
 
+# Canvas class to embedd into the window for plots
 class MplCanvas(FigureCanvasQTAgg):
     def __init__(self, width=5, height=4, dpi=100):
         fig = Figure(figsize=(width, height), dpi=dpi)
         super().__init__(fig)
 
+# Class which will store all characteristic data of a graph, which can then be pickled into a 
+# bytestream and stored for later graphing
 class SavedGraph:
     def __init__(self, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable):
         self.x_data = x_data
@@ -719,7 +809,9 @@ class SavedGraph:
         self.enforce_square = enforce_square
         self.enable = enable
 
+# Main window class which holds the app
 class MizzouDataTool(QMainWindow):
+    # Function to initialize all widgets and layouts of the main page
     def __init__(self):
         super().__init__()
 
@@ -935,6 +1027,7 @@ class MizzouDataTool(QMainWindow):
 
         self.enter_zen_mode()
 
+    # Function which sets the title background
     def set_title_background_color(self, r, g, b):
         """
         Set a custom RGB background color for the title.
@@ -945,6 +1038,8 @@ class MizzouDataTool(QMainWindow):
         self.title_label.setAutoFillBackground(True)
         self.title_label.setPalette(palette)
 
+    # Function to enable and disable elements, which is used for keeping the user from entering
+    # values before data has been loaded
     def set_elements_enabled(self, enabled):
         """
         Enable or disable all elements below the file path input.
@@ -966,6 +1061,7 @@ class MizzouDataTool(QMainWindow):
             elif isinstance(layout.itemAt(i), QVBoxLayout) or isinstance(layout.itemAt(i), QHBoxLayout) or isinstance(layout.itemAt(i), QGridLayout):
                 self.toggle_children(layout.itemAt(i), state)
 
+    # Function used to make the three axis sections
     def create_axis_section(self, axis_name):
         """
         Create a section for an axis with a dropdown and additional input boxes.
@@ -1069,6 +1165,7 @@ class MizzouDataTool(QMainWindow):
         layout.addLayout(inputs_grid_layout)
         return layout
 
+    # Function which opens a sub dialog for the user to select the path to the data
     def browse_file(self):
         """
         Opens a file dialog to browse for a file path.
@@ -1080,6 +1177,7 @@ class MizzouDataTool(QMainWindow):
         else:
             self.log_message("directory selection cancelled")
 
+    # Function which generates the data frame from the given path and enables all window functions
     def generate_data_frame(self):
         """
         Function for generating a data frame.
@@ -1104,12 +1202,14 @@ class MizzouDataTool(QMainWindow):
         else:
             self.log_message("An error occured please make sure that the 3 files needed exist in that directory.")
 
+    # Function to async log to the terminal after the save process
     def finished_save(self, result):
         if result: 
             self.log_message("Data saved!")
         else:
             self.log_message("Something went wrong, the data was not saved.")
 
+    # Function to save the data from the data frame into a MONOLITH.CSV file
     def save_data_frame(self):
         """
         Placeholder function for saving the data frame.
@@ -1130,12 +1230,14 @@ class MizzouDataTool(QMainWindow):
         self.thread.finished.connect(self.thread.deleteLater)
         self.thread.start()
 
+    # General function which logs information to the terminal widget
     def log_message(self, message: str):
         """
         Logs a message to the terminal at the bottom.
         """
         self.terminal.append(message)
 
+    # Function to populate the axis dropdowns with the available headers from the data
     def populate_axis_dropdowns(self, options_dict):
         """
         Populate all axis dropdown menus with keys from a dictionary.
@@ -1152,10 +1254,13 @@ class MizzouDataTool(QMainWindow):
             dropdown.clear()
             dropdown.addItems(options_dict.keys())
     
+    # Function to enable or disable the z-axis fields
     def toggle_z_axis(self, state):
         z_axis_dropdown = self.z_axis_layout
         self.toggle_children(z_axis_dropdown, state)
 
+    # Function to automatically update the axis input fields when a name is selected from the 
+    # dropdown menu. These are pulled from the stored DataTypes.
     def update_axis_inputs(self, dropdown: QWidget):
         selected_item = dropdown.currentText()
         if selected_item in self.data_frame.headers:
@@ -1187,9 +1292,12 @@ class MizzouDataTool(QMainWindow):
 
             self.findChild(QWidget, "save_button_" + axis).setStyleSheet("background-color: none")
 
+    # Function to set the color of the save button to alert the user to an unsaved change
     def update_save_color(self, axis):
         self.findChild(QWidget, "save_button_" + axis).setStyleSheet("background-color: #0BA87A")
 
+    # Function which saves all of the input fields to the dataframe, including error and bounds
+    # checking. If fields are left blank then the default values are used.
     def save_settings(self, axis):
         central_widget = self.findChild(QWidget, name = "central_widget")
 
@@ -1240,6 +1348,7 @@ class MizzouDataTool(QMainWindow):
             self.findChild(QWidget, "save_button_" + axis).setStyleSheet("background-color: none")
             self.findChild(QWidget, "save_df_button").setStyleSheet("background-color: #0BA87A")
 
+    # Function to generate a graph into the canvas from all of the selected options and dropdowns
     def generate_graph(self, return_params):
         central_widget = self.findChild(QWidget, name = "central_widget")
 
@@ -1292,6 +1401,8 @@ class MizzouDataTool(QMainWindow):
             self.log_message("Don't do that!!!")
             self.log_message(str(e))
 
+    # Function to pop out a full screen window with the currently selected graph options. This
+    # window will behave as a fully independant graph, and can be translated and rescaled
     def full_screen_figure(self):
             w = BreakoutWindow()
             x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable = self.generate_graph(True)
@@ -1299,6 +1410,7 @@ class MizzouDataTool(QMainWindow):
             w.show_new_window()
             self.array_window.append(w)
 
+    # Function to save a graph as a .MRGO bytestream. Uses docs.python.org/3/library/pickle.html
     def save_graph(self):
         try:
             x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable = self.generate_graph(True)
@@ -1310,6 +1422,7 @@ class MizzouDataTool(QMainWindow):
             self.log_message("Save Graph Cancelled or incorrect file was used")
             self.log_message(str(e))
 
+    # Function which opens a saved .MRGO object file and plots it into the canvas
     def open_saved_graph(self):
         try:
             path = QFileDialog.getOpenFileName(self, "Select File")
@@ -1334,14 +1447,21 @@ class MizzouDataTool(QMainWindow):
             self.log_message("Open Graph Cancelled or incorrect file was used")
             self.log_message(str(e))
 
+    # Function which clears the canvas of all graphs
     def clear_graph(self):
         self.canvas.figure.clear()
         self.canvas.draw()
 
+    # Function which executes a functionality from the extra graphing options dropdown menu.
+    # Will call the function stored in the dictionary of options and set the dropdown
+    # back to the default option.
     def execute_extra_graph_button(self):
         self.extra_graph_options[self.extra_graph_buttons_dropdown.currentText()]()
         self.extra_graph_buttons_dropdown.setCurrentIndex(0)
 
+    # Function which searches for and loads up options from the PRESETS.CSV file. This is intended
+    # to allow the user to store commonly used graph setups as "presets". For example, the course
+    # map graphing setup is by default kept in the PRESETS.CSV, as this will be commonly used
     def get_preset_graphs(self):
         ret_list = []
         ret_list.append("Load Preset Graph")
@@ -1361,6 +1481,8 @@ class MizzouDataTool(QMainWindow):
                     ret_list.append(line[0])
         return ret_list
 
+    # Function which graphs from the preset graphs by setting the dropdown menus and calling the
+    # standard graphing function
     def populate_preset_graph(self, x_sel, y_sel, z_sel, use_z, z_as_color):
         self.findChild(QWidget, "axis_dropdown_X").setCurrentIndex(self.data_frame.headers[x_sel].index)
         self.findChild(QWidget, "axis_dropdown_Y").setCurrentIndex(self.data_frame.headers[y_sel].index)
@@ -1369,6 +1491,8 @@ class MizzouDataTool(QMainWindow):
         self.apply_z_as_color_checkbox.setChecked(z_as_color)
         self.generate_graph(False)
 
+    # Function which pulls info from the PRESETS.CSV file based on the currently selected preset
+    # and then makes a call to graph that preset option.
     def execute_preset_graph(self):
         if self.preset_graphing_dropdown.currentIndex() == 0: return
         selection = self.preset_graphing_dropdown.currentText()
@@ -1384,6 +1508,7 @@ class MizzouDataTool(QMainWindow):
                     self.populate_preset_graph(x_sel=line[1], y_sel=line[2], z_sel=line[3], use_z= line[4]=="True", z_as_color= line[5]=="True")
         self.preset_graphing_dropdown.setCurrentIndex(0)
 
+    # Function which saves the current graph options as a preset to the PRESETS.CSV file
     def save_preset_graph(self):
         save_preset_dialog = SavePresetPopoutWindow(self)
         if save_preset_dialog.exec() == QDialog.DialogCode.Accepted:
@@ -1402,6 +1527,8 @@ class MizzouDataTool(QMainWindow):
             self.preset_graphing_dropdown.clear()
             self.preset_graphing_dropdown.addItems(self.preset_graphs)
 
+    # Function to remove a preset from the csv of presets. This is done via a popout dialog
+    # with a dropdown of the presets which can be selected for removal
     def remove_preset_graph(self):
         remove_preset_dialog = RemovePresetPopoutWindow(self.preset_graphs, self)
         if remove_preset_dialog.exec() == QDialog.DialogCode.Accepted:
@@ -1419,9 +1546,10 @@ class MizzouDataTool(QMainWindow):
             self.preset_graphing_dropdown.clear()
             self.preset_graphing_dropdown.addItems(self.preset_graphs)
 
+    # Function which swaps the index associated with two headers, for use when data is accientally
+    # labeled incorrectly. We have found this to be an issue with IMU data specifically due to
+    # changes in mounting and orientation
     def swap_headers(self):
-        # Make function here to swap headers in two boxes, provided that they are both valid headers
-        # Make sure to have popup confirmation windown which requires a second confirmation with some added text to avoid accidental swaps
         central_widget = self.findChild(QWidget, "central_widget")
         header_1 = central_widget.findChild(QWidget, "swap_headers_dropdown_1").currentText()
         header_2 = central_widget.findChild(QWidget, "swap_headers_dropdown_2").currentText()
@@ -1437,6 +1565,9 @@ class MizzouDataTool(QMainWindow):
         except:
             self.log_message("Error: Data failed to be swapped")
 
+    # Function to enter the "zen mode" for this app, which removes all non-essential widgets from
+    # the user's view. Note that these widgets still exist in this state and are interacted with by
+    # the program, but cannot be seen until zen mode is toggled off, also with this function
     def enter_zen_mode(self):
         central_widget = self.findChild(QWidget, "central_widget")
         self.zen = not self.zen
@@ -1572,6 +1703,8 @@ class MizzouDataTool(QMainWindow):
             self.swap_headers_dropdown_2.show()
             self.swap_headers_button.show()
 
+    # Function to implement the "I'm Feelin Lucky" button. This is purely for fun, and makes a 
+    # random graph of the 3D with color variety (chosen because that's the coolest looking one)
     def up_all_night(self):
         central_widget = self.findChild(QWidget, "central_widget")
         x_axis_dropdown = central_widget.findChild(QWidget, "axis_dropdown_X")
@@ -1584,7 +1717,11 @@ class MizzouDataTool(QMainWindow):
         self.apply_z_as_color_checkbox.setChecked(True)
         self.generate_graph(False)
 
+# Secondary window class explicitly for creating and holding popout windowed graphs. Becasue
+# graphs cannot be passed directly without binding to the main canvas, a completely new canvas
+# object is created and data graphed on with this window
 class BreakoutWindow(QMainWindow):
+    # Function which initializes all widgets of the breakout window
     def __init__(self):
         super().__init__()
         central_widget = QWidget()
@@ -1599,8 +1736,8 @@ class BreakoutWindow(QMainWindow):
         main_layout.addWidget(self.toolbar) 
         main_layout.addWidget(self.canvas)
         
+    # Main function of the window, which accepts the data from the calling window and plots it
     def fullscreen_graph(self, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable):
-
         self.canvas.figure.clear()
         figure = self.canvas.figure
 
@@ -1610,9 +1747,11 @@ class BreakoutWindow(QMainWindow):
 
         self.canvas.draw()
 
+    # Function to call window as fullscreen popup
     def show_new_window(self):
         self.showMaximized()
 
+    # Near-copy of make_plot_2D function in Dataframe, but which accepts only explicit data
     def make_plot_2D(self, figure, x_vals, x_dataType, y_vals, y_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_square, enable_lines):
         if remove_data_till_in_range:
             while True:
@@ -1693,6 +1832,7 @@ class BreakoutWindow(QMainWindow):
             plot.set_box_aspect(1)
         else: plot.set_box_aspect(None)
     
+    # Near-copy of make_plot_3D_color function in Dataframe, but which accepts only explicit data
     def make_plot_3D_color(self, figure, x_vals, x_dataType, y_vals, y_dataType, color_vals, color_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable_lines):
         ranges = [
             [x_dataType.range_low, x_dataType.range_high],
@@ -1831,6 +1971,7 @@ class BreakoutWindow(QMainWindow):
             plot.set_box_aspect(1)
         else: plot.set_box_aspect(None)
 
+    # Near-copy of make_plot_3D function in Dataframe, but which accepts only explicit data
     def make_plot_3D(self, figure, x_vals, x_dataType, y_vals, y_dataType, z_vals, z_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_cube, enable_lines):
         convs = [x_dataType.conv, y_dataType.conv, z_dataType.conv]
         ranges = [
@@ -1957,6 +2098,9 @@ class BreakoutWindow(QMainWindow):
             plot.set_box_aspect(1)
         else: plot.set_box_aspect(None)
 
+# Breakout window class used to store presets with a passed name. Called by main window. Returns
+# the entered name and wether or not the button was clicked, as exiting out of the window should
+# result in not saving the graph
 class SavePresetPopoutWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1982,6 +2126,8 @@ class SavePresetPopoutWindow(QDialog):
         """Return the entered text when dialog is accepted."""
         return self.preset_name_input.text()
     
+# Breakout window class used for removing presets from the PRESETS.CSV. Contains only a dropdown
+# which is populated with the existing presets to be selected from
 class RemovePresetPopoutWindow(QDialog):
     def __init__(self, names, parent=None):
         super().__init__(parent)
@@ -2006,6 +2152,8 @@ class RemovePresetPopoutWindow(QDialog):
         """Return the entered text when dialog is accepted."""
         return self.preset_name_dropdown.currentText()
 
+
+# Main code for the app. Creates a new QApp, a new window to show, and starts the app
 app = QApplication(sys.argv)
 window = MizzouDataTool()
 window.showMaximized()
