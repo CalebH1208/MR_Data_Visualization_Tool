@@ -181,7 +181,7 @@ class Dataframe:
                 temp_dict[names[i]] = DataType(index=(i))
             return temp_dict
 
-        # Function which reads in teh header v2 format, which consists of four header lines.
+        # Function which reads in the header v2 format, which consists of four header lines.
         # These are names, units, conversion rates, and precision (all described above)
         def header_v2(file):
             temp_dict = {}
@@ -312,7 +312,7 @@ class Dataframe:
 
             self.df.pop()
 
-        # Function which reads in the data from the MONOLITH.CSV, in teh header v2 format with
+        # Function which reads in the data from the MONOLITH.CSV, in the header v2 format with
         # additional ranges, max_step, and start_vals
         def read_monolith():
             monolith = open(dir_path + '/MONOLITH.CSV', 'r')
@@ -2138,6 +2138,7 @@ class RemovePresetPopoutWindow(QDialog):
         self.layout = QVBoxLayout()
         self.preset_name_dropdown = QComboBox()
         self.preset_name_dropdown.addItems(names)
+        self.preset_name_dropdown.setItemText(0, "Remove Preset Graph")
         self.confirm_button = QPushButton("Remove")
 
         # Add widgets to layout
@@ -2151,7 +2152,6 @@ class RemovePresetPopoutWindow(QDialog):
     def get_name(self):
         """Return the entered text when dialog is accepted."""
         return self.preset_name_dropdown.currentText()
-
 
 # Main code for the app. Creates a new QApp, a new window to show, and starts the app
 app = QApplication(sys.argv)
