@@ -17,8 +17,8 @@ os.environ["QT_API"] = "PyQt6"
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from matplotlib.figure import Figure
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QLineEdit, QComboBox, QCheckBox, QPushButton, QFileDialog, QTextEdit, QDialog
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QMessageBox,
+    QLabel, QLineEdit, QComboBox, QCheckBox, QPushButton, QFileDialog, QTextEdit, QDialog, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QObject, QThread, pyqtSignal
 from PyQt6.QtGui import QPalette, QColor, QFont
@@ -884,6 +884,7 @@ class MizzouDataTool(QMainWindow):
         browse_button = QPushButton("Browse Folder")
         browse_file_button = QPushButton("Browse File")
         generate_df_button = QPushButton("Generate Data Frame")
+        generate_df_button.setObjectName("generate_df_button")
         save_df_button = QPushButton("Save Data Frame")
         save_df_button.setObjectName("save_df_button")
         file_path_layout.addWidget(file_path_label)
@@ -1118,7 +1119,7 @@ class MizzouDataTool(QMainWindow):
         axis_dropdown = QComboBox()
         axis_dropdown.setObjectName("axis_dropdown_" + axis)
         axis_dropdown.setMaximumHeight(25)
-        axis_dropdown.currentIndexChanged.connect(lambda: self.update_axis_inputs(axis_dropdown))
+        axis_dropdown.currentIndexChanged.connect(lambda: self.update_axis_inputs(axis))
         layout.addWidget(axis_dropdown)
 
         # Conversion Rate, Unit, and Precision Inputs
@@ -1210,7 +1211,9 @@ class MizzouDataTool(QMainWindow):
         if file_path:
             self.file_path_input.setText(file_path)
             self.log_message("Directory selected")
+            self.findChild(QWidget, "generate_df_button").setStyleSheet("background-color: #0BA87A")
         else:
+            self.findChild(QWidget, "generate_df_button").setStyleSheet("background-color: none")
             self.log_message("directory selection cancelled")
 
     # Function which opens a sub dialog for the user to select the path to a specific file
@@ -1222,7 +1225,9 @@ class MizzouDataTool(QMainWindow):
         if file_path:
             self.file_path_input.setText(file_path)
             self.log_message("File selected")
+            self.findChild(QWidget, "generate_df_button").setStyleSheet("background-color: #0BA87A")
         else:
+            self.findChild(QWidget, "generate_df_button").setStyleSheet("background-color: none")
             self.log_message("File selection cancelled")
 
     # Function which generates the data frame from the given path and enables all window functions
@@ -1245,6 +1250,7 @@ class MizzouDataTool(QMainWindow):
 
     # Helper function to generate all the data as a data frame
     def generate(self, is_dir):
+        self.findChild(QWidget, "generate_df_button").setStyleSheet("background-color: none")
         self.data_frame = Dataframe()
         self.data_frame.parse_data(self.data_file_path, is_dir)
         self.data_frame_generated = True
@@ -1293,6 +1299,15 @@ class MizzouDataTool(QMainWindow):
         """
         self.terminal.append(message)
 
+    # Function which can be used to display error messages as popout windows
+    def show_error_dialog(self, message):
+        error_msg = QMessageBox()
+        error_msg.setIcon(QMessageBox.Icon.Critical)
+        error_msg.setText("Error")
+        error_msg.setInformativeText(message)
+        error_msg.setWindowTitle("Error")
+        error_msg.exec()
+
     # Function to populate the axis dropdowns with the available headers from the data
     def populate_axis_dropdowns(self, options_dict):
         """
@@ -1317,11 +1332,10 @@ class MizzouDataTool(QMainWindow):
 
     # Function to automatically update the axis input fields when a name is selected from the 
     # dropdown menu. These are pulled from the stored DataTypes.
-    def update_axis_inputs(self, dropdown: QWidget):
-        selected_item = dropdown.currentText()
+    def update_axis_inputs(self, axis):
+        selected_item = self.findChild(QWidget, "axis_dropdown_" + axis).currentText()
         if selected_item in self.data_frame.headers:
             data_type = self.data_frame.headers[selected_item]
-            axis = dropdown.objectName()[-1]
             central_widget = self.findChild(QWidget, name = "central_widget")
 
             # Get the appropriate inputs based on their object names
@@ -1404,6 +1418,11 @@ class MizzouDataTool(QMainWindow):
             self.findChild(QWidget, "save_button_" + axis).setStyleSheet("background-color: none")
             self.findChild(QWidget, "save_df_button").setStyleSheet("background-color: #0BA87A")
 
+            # Ensure that all other axes are updated, to prevent out-of-date issues
+            self.update_axis_inputs("X")
+            self.update_axis_inputs("Y")
+            self.update_axis_inputs("Z")
+
     # Function to generate a graph into the canvas from all of the selected options and dropdowns
     def generate_graph(self, return_params):
         central_widget = self.findChild(QWidget, name = "central_widget")
@@ -1454,8 +1473,15 @@ class MizzouDataTool(QMainWindow):
                 else: plot_type = 2
                 return x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, [x_selection, y_selection, z_selection], title, remove_till_in_range, enable_grid, enforce_color_range, enforce_square, use_lines
         except Exception as e:
-            self.log_message("Don't do that!!!")
-            self.log_message(str(e))
+            err_type = type(e).__name__
+            if err_type == "TypeError":
+                self.log_message("Error: Cannot create graph from given data type")
+                if self.zen:
+                    self.show_error_dialog("Cannot create graph from given data type")
+            else:
+                self.log_message("Error: Encountered an unexpected error when attempting to graph.")
+                if self.zen:
+                        self.show_error_dialog("Encountered an unexpected error when attempting to graph.")
 
     # Function to pop out a full screen window with the currently selected graph options. This
     # window will behave as a fully independant graph, and can be translated and rescaled
