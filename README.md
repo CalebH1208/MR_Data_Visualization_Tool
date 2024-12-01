@@ -56,13 +56,12 @@ containing the csv files with the data they want to access. This folder should i
 other non-data files. Note that when saving data the application will create a MONOLITH.CSV file. 
 This should not be modified directly, and is intended to be interacted with purely through the app.
 
-**VERY IMPORTANT!: THE FOLDER MUST CONTAIN 3 DATA FILES NAMED "1HZLOG.CSV", "10HZLOG.CSV", and 
-"100HZLOG.CSV". EACH OF THESE FILES MUST BE IN CSV FORMAT WITH A SINGLE HEADER LINE CONSISTING OF
-DATA NAMES. EACH OF THESE FILES MUST HAVE A COLUMN NAMED "Time" AS THIS WILL BE USED TO COMPILE THE
-DATA TOGETHER.**
+**VERY IMPORTANT!: FOR LOADING FROM A DIRECTORY, THE FOLDER MUST CONTAIN 3 DATA FILES NAMED
+"1HZLOG.CSV", "10HZLOG.CSV", and "100HZLOG.CSV". EACH OF THESE FILES MUST BE IN CSV FORMAT WITH A 
+SINGLE HEADER LINE CONSISTING OF DATA NAMES. EACH OF THESE FILES MUST HAVE A COLUMN NAMED "Time" AS
+THIS WILL BE USED TO COMPILE THE DATA TOGETHER.**
 
-If only one CSV is desired, please name it "100HZLOG.CSV" and create files with the other two names
-and only the contents "Time" This will allow only one CSV to be used.
+If only one CSV is desired, use the "Browse File" option.
 
 ### Simplest Usage Case
 1. Open the app
@@ -74,10 +73,15 @@ hides the terminal, which will inform the user of error states occuring.
 6. Click the "Generate Graph" button to display the graph on the embedded canvas.
 
 ### Description of Functionality (Zen Mode Only)
-- Browse:
+- Browse Folder:
     
     Opens a file explorer which can be used to select the folder containing the data. Please see above
     for requirements of this folder and the data format itself.
+
+- Browse File:
+    
+    Opens a file explorer which can be used to select the file containing the data. This must be in
+    "standard" CSV format.
 
 - Generate Data Frame:
 

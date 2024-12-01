@@ -143,8 +143,9 @@ class Dataframe:
     # and interpolates data points from the lower HZ log files based on the "Time" column,
     # resulting in one Dataframe which is rectangular and holds all data.
     # This funciton will first attempt to read from the MONOLITH.CSV file, then defaults to
-    # "1HZLOG.CSV", "10HZLOG.CSV", and "100HZLOG.CSV"
-    def parse_data(self, dir_path):
+    # "1HZLOG.CSV", "10HZLOG.CSV", and "100HZLOG.CSV" If is_dir is false, the file is assumed to be
+    # a "standard" CSV, and is read in as the most basic format.
+    def parse_data(self, dir_path, is_dir):
         # Function which searches for the existance of the MONOLITH.CSV file
         def detect_monolith(dir_path):
             return os.path.exists(dir_path + "/MONOLITH.CSV")
@@ -338,7 +339,22 @@ class Dataframe:
                 line = convert_list_to_num(line.rstrip().split(','))
                 if None not in line:
                     self.df.append(line)
-            
+        
+        # Function which reads a singluar CSV file from the path, in a header V1 format only
+        def read_from_csv():
+            with open(dir_path) as file:
+                headers = file.readline().rstrip().split(",")
+                indices = range(len(headers))
+                for i in indices:
+                    self.headers[headers[i]] = DataType(i)
+
+                while True:
+                    line = file.readline()
+                    if not line: break
+                    line = convert_list_to_num(line.rstrip().split(','))
+                    if None not in line:
+                        self.df.append(line)
+
         # Function to load in the config file into the DataTypes. This file is a global
         # configuration and not meant to edited by the regular user. If other FSAE teams are
         # using this project, it is highly recommended that this file be edited once to match
@@ -355,28 +371,34 @@ class Dataframe:
                     line = convert_list_to_num(line)
                     config[line[0]] = line[1:]
             for header in self.headers:
-                if(self.headers[header].conv == 1 and self.headers[header].unit == "unknown" and self.headers[header].precision == 1 and
-                   self.headers[header].range_low < -17000000000000000000 and self.headers[header].range_high > 17000000000000000000 and
-                   self.headers[header].max_step > 17000000000000000000 and self.headers[header].start_pos == 0):
-                    self.headers[header].conv = config[header][0]
-                    self.headers[header].unit = config[header][1]
-                    self.headers[header].precision = config[header][2]
-                    self.headers[header].range_low = config[header][3]
-                    self.headers[header].range_high = config[header][4]
-                    self.headers[header].max_step = config[header][5]
-                    self.headers[header].start_pos = config[header][6]
+                if header in config:
+                    if(self.headers[header].conv == 1 and self.headers[header].unit == "unknown" and self.headers[header].precision == 1 and
+                    self.headers[header].range_low < -17000000000000000000 and self.headers[header].range_high > 17000000000000000000 and
+                    self.headers[header].max_step > 17000000000000000000 and self.headers[header].start_pos == 0):
+                        self.headers[header].conv = config[header][0]
+                        self.headers[header].unit = config[header][1]
+                        self.headers[header].precision = config[header][2]
+                        self.headers[header].range_low = config[header][3]
+                        self.headers[header].range_high = config[header][4]
+                        self.headers[header].max_step = config[header][5]
+                        self.headers[header].start_pos = config[header][6]
 
-        # Set global path
-        self.dir_path = dir_path
+        if is_dir:
+            # Set global path
+            self.dir_path = dir_path
 
-        # Search for a MONOLITH.CSV in the path, and if found then read it in,
-        # else, read in from the three default files
-        if(detect_monolith(dir_path)):
-            read_monolith()
+            # Search for a MONOLITH.CSV in the path, and if found then read it in,
+            # else, read in from the three default files
+            if(detect_monolith(dir_path)):
+                read_monolith()
+            else:
+                no_monolith()
         else:
-            no_monolith()
-        
-        # Finally, load in the config file
+            #Set global path
+            self.dir_path = os.path.dirname(dir_path)
+            read_from_csv()
+            
+            # Finally, load in the config file
         load_config()
 
     # Function to make a 2D Matplotlib plot with the given options. If the optional parameters are
@@ -848,13 +870,15 @@ class MizzouDataTool(QMainWindow):
         file_path_layout = QHBoxLayout()
         file_path_label = QLabel("File Path:")
         self.file_path_input = QLineEdit()
-        browse_button = QPushButton("Browse")
+        browse_button = QPushButton("Browse Folder")
+        browse_file_button = QPushButton("Browse File")
         generate_df_button = QPushButton("Generate Data Frame")
         save_df_button = QPushButton("Save Data Frame")
         save_df_button.setObjectName("save_df_button")
         file_path_layout.addWidget(file_path_label)
         file_path_layout.addWidget(self.file_path_input)
         file_path_layout.addWidget(browse_button)
+        file_path_layout.addWidget(browse_file_button)
         file_path_layout.addWidget(generate_df_button)
         file_path_layout.addWidget(save_df_button)
         main_layout.addLayout(file_path_layout)
@@ -1021,7 +1045,8 @@ class MizzouDataTool(QMainWindow):
         self.zen_mode_button.setEnabled(True)
 
         # Connect signals
-        browse_button.clicked.connect(self.browse_file)
+        browse_button.clicked.connect(self.browse_folder)
+        browse_file_button.clicked.connect(self.browse_file)
         generate_df_button.clicked.connect(self.generate_data_frame)
         save_df_button.clicked.connect(self.save_data_frame)
 
@@ -1166,7 +1191,7 @@ class MizzouDataTool(QMainWindow):
         return layout
 
     # Function which opens a sub dialog for the user to select the path to the data
-    def browse_file(self):
+    def browse_folder(self):
         """
         Opens a file dialog to browse for a file path.
         """
@@ -1177,6 +1202,18 @@ class MizzouDataTool(QMainWindow):
         else:
             self.log_message("directory selection cancelled")
 
+    # Function which opens a sub dialog for the user to select the path to a specific file
+    def browse_file(self):
+        """
+        Opens a file dialog to browse for a file.
+        """
+        file_path = QFileDialog.getOpenFileName(self, "Select File", "", "CSV Files (*.csv)")[0]
+        if file_path:
+            self.file_path_input.setText(file_path)
+            self.log_message("File selected")
+        else:
+            self.log_message("File selection cancelled")
+
     # Function which generates the data frame from the given path and enables all window functions
     def generate_data_frame(self):
         """
@@ -1185,22 +1222,29 @@ class MizzouDataTool(QMainWindow):
         """
         self.log_message("Attempting Data Frame Generation")
         self.data_file_path = self.file_path_input.text()
-        if(os.path.exists(str(self.data_file_path) + '/100HZLOG.CSV')) and (os.path.exists(str(self.data_file_path) + '/10HZLOG.CSV')) and (os.path.exists(str(self.data_file_path) + '/1HZLOG.CSV')):
-            self.data_frame = Dataframe()
-            self.data_frame.parse_data(self.data_file_path)
-            self.data_frame_generated = True
-            self.set_elements_enabled(True)
-            self.toggle_z_axis(False)
-            self.use_z_axis_checkbox.setChecked(False)
-            self.apply_z_as_color_checkbox.setChecked(False)
-            self.log_message("Data Frame has been generated!")
-            self.populate_axis_dropdowns(self.data_frame.headers)
-            if os.path.exists(str(self.data_file_path) + '/MONOLITH.CSV'):
-                self.findChild(QWidget, "save_df_button").setStyleSheet("background-color: none")
+        if os.path.isdir(self.data_file_path):
+            if(os.path.exists(str(self.data_file_path) + '/100HZLOG.CSV')) and (os.path.exists(str(self.data_file_path) + '/10HZLOG.CSV')) and (os.path.exists(str(self.data_file_path) + '/1HZLOG.CSV')):
+                self.generate(True)
             else:
-                self.findChild(QWidget, "save_df_button").setStyleSheet("background-color: #0BA87A")
+                self.log_message("An error occured please make sure that the 3 files needed exist in that directory.")
+        elif os.path.isfile(self.data_file_path):
+            self.generate(False)
         else:
-            self.log_message("An error occured please make sure that the 3 files needed exist in that directory.")
+             self.log_message("An error occured, please make sure that the file is of type .csv or a directory")
+
+    # Helper function to generate all the data as a data frame
+    def generate(self, is_dir):
+        self.data_frame = Dataframe()
+        self.data_frame.parse_data(self.data_file_path, is_dir)
+        self.data_frame_generated = True
+        self.set_elements_enabled(True)
+        self.toggle_z_axis(False)
+        self.log_message("Data Frame has been generated!")
+        self.populate_axis_dropdowns(self.data_frame.headers)
+        if os.path.exists(str(self.data_file_path) + '/MONOLITH.CSV'):
+            self.findChild(QWidget, "save_df_button").setStyleSheet("background-color: none")
+        else:
+            self.findChild(QWidget, "save_df_button").setStyleSheet("background-color: #0BA87A")
 
     # Function to async log to the terminal after the save process
     def finished_save(self, result):
