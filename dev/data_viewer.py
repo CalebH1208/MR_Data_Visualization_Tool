@@ -1445,7 +1445,7 @@ class MizzouDataTool(QMainWindow):
             title = central_widget.findChild(QWidget, "custom_plot_title_line_edit").text()
         else:
             if z_enabled:
-                title = z_selection + " vs. " + y_selection + " vs. " + x_selection
+                title = y_selection + " vs. " + x_selection + " vs. " + z_selection
             else:
                 title = y_selection + " vs. " + x_selection
 
