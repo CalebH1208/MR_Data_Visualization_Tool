@@ -1540,12 +1540,15 @@ class MizzouDataTool(QMainWindow):
     # Function which graphs from the preset graphs by setting the dropdown menus and calling the
     # standard graphing function
     def populate_preset_graph(self, x_sel, y_sel, z_sel, use_z, z_as_color):
-        self.findChild(QWidget, "axis_dropdown_X").setCurrentIndex(self.data_frame.headers[x_sel].index)
-        self.findChild(QWidget, "axis_dropdown_Y").setCurrentIndex(self.data_frame.headers[y_sel].index)
-        self.findChild(QWidget, "axis_dropdown_Z").setCurrentIndex(self.data_frame.headers[z_sel].index)
-        self.use_z_axis_checkbox.setChecked(use_z)
-        self.apply_z_as_color_checkbox.setChecked(z_as_color)
-        self.generate_graph(False)
+        if x_sel in self.data_frame.headers and y_sel in self.data_frame.headers and z_sel in self.data_frame.headers:
+            self.findChild(QWidget, "axis_dropdown_X").setCurrentIndex(self.data_frame.headers[x_sel].index)
+            self.findChild(QWidget, "axis_dropdown_Y").setCurrentIndex(self.data_frame.headers[y_sel].index)
+            self.findChild(QWidget, "axis_dropdown_Z").setCurrentIndex(self.data_frame.headers[z_sel].index)
+            self.use_z_axis_checkbox.setChecked(use_z)
+            self.apply_z_as_color_checkbox.setChecked(z_as_color)
+            self.generate_graph(False)
+        else:
+            self.log_message("Error: Data headers for preset not found in data")
 
     # Function which pulls info from the PRESETS.CSV file based on the currently selected preset
     # and then makes a call to graph that preset option.
