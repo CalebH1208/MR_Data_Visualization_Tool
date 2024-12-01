@@ -17,8 +17,8 @@ os.environ["QT_API"] = "PyQt6"
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from matplotlib.figure import Figure
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QLineEdit, QComboBox, QCheckBox, QPushButton, QFileDialog, QTextEdit, QDialog
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QMessageBox,
+    QLabel, QLineEdit, QComboBox, QCheckBox, QPushButton, QFileDialog, QTextEdit, QDialog, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QObject, QThread, pyqtSignal
 from PyQt6.QtGui import QPalette, QColor, QFont
@@ -143,8 +143,9 @@ class Dataframe:
     # and interpolates data points from the lower HZ log files based on the "Time" column,
     # resulting in one Dataframe which is rectangular and holds all data.
     # This funciton will first attempt to read from the MONOLITH.CSV file, then defaults to
-    # "1HZLOG.CSV", "10HZLOG.CSV", and "100HZLOG.CSV"
-    def parse_data(self, dir_path):
+    # "1HZLOG.CSV", "10HZLOG.CSV", and "100HZLOG.CSV" If is_dir is false, the file is assumed to be
+    # a "standard" CSV, and is read in as the most basic format.
+    def parse_data(self, dir_path, is_dir):
         # Function which searches for the existance of the MONOLITH.CSV file
         def detect_monolith(dir_path):
             return os.path.exists(dir_path + "/MONOLITH.CSV")
@@ -179,6 +180,15 @@ class Dataframe:
 
             for i in indices:
                 temp_dict[names[i]] = DataType(index=(i))
+
+            # Consumes all repeated headder lines until where data would be
+            while True:
+                location = file.tell()
+                line = file.readline().rstrip().split(",")
+                if line[0] != "Time":
+                    file.seek(location)
+                    break
+
             return temp_dict
 
         # Function which reads in the header v2 format, which consists of four header lines.
@@ -267,7 +277,7 @@ class Dataframe:
             if self.header_version == 1:
                 self.headers = header_v1(file100)
             if self.header_version == 2:
-                self.headers = header_v2(file100)
+                self.headers = header_v2(file100)\
             
             offset = 0
             while True:
@@ -277,7 +287,9 @@ class Dataframe:
                 if len(line) > len(self.headers):
                     continue
                 if line[0] == "Time":
+                    if len(self.df) <= 1: continue
                     offset = self.df[-1][0]
+                    print("Appending", offset)
                     self.restarts.append(offset)
                     continue
                 line = convert_list_to_num(line)
@@ -338,7 +350,22 @@ class Dataframe:
                 line = convert_list_to_num(line.rstrip().split(','))
                 if None not in line:
                     self.df.append(line)
-            
+        
+        # Function which reads a singluar CSV file from the path, in a header V1 format only
+        def read_from_csv():
+            with open(dir_path) as file:
+                headers = file.readline().rstrip().split(",")
+                indices = range(len(headers))
+                for i in indices:
+                    self.headers[headers[i]] = DataType(i)
+
+                while True:
+                    line = file.readline()
+                    if not line: break
+                    line = convert_list_to_num(line.rstrip().split(','))
+                    if None not in line:
+                        self.df.append(line)
+
         # Function to load in the config file into the DataTypes. This file is a global
         # configuration and not meant to edited by the regular user. If other FSAE teams are
         # using this project, it is highly recommended that this file be edited once to match
@@ -355,28 +382,34 @@ class Dataframe:
                     line = convert_list_to_num(line)
                     config[line[0]] = line[1:]
             for header in self.headers:
-                if(self.headers[header].conv == 1 and self.headers[header].unit == "unknown" and self.headers[header].precision == 1 and
-                   self.headers[header].range_low < -17000000000000000000 and self.headers[header].range_high > 17000000000000000000 and
-                   self.headers[header].max_step > 17000000000000000000 and self.headers[header].start_pos == 0):
-                    self.headers[header].conv = config[header][0]
-                    self.headers[header].unit = config[header][1]
-                    self.headers[header].precision = config[header][2]
-                    self.headers[header].range_low = config[header][3]
-                    self.headers[header].range_high = config[header][4]
-                    self.headers[header].max_step = config[header][5]
-                    self.headers[header].start_pos = config[header][6]
+                if header in config:
+                    if(self.headers[header].conv == 1 and self.headers[header].unit == "unknown" and self.headers[header].precision == 1 and
+                    self.headers[header].range_low < -17000000000000000000 and self.headers[header].range_high > 17000000000000000000 and
+                    self.headers[header].max_step > 17000000000000000000 and self.headers[header].start_pos == 0):
+                        self.headers[header].conv = config[header][0]
+                        self.headers[header].unit = config[header][1]
+                        self.headers[header].precision = config[header][2]
+                        self.headers[header].range_low = config[header][3]
+                        self.headers[header].range_high = config[header][4]
+                        self.headers[header].max_step = config[header][5]
+                        self.headers[header].start_pos = config[header][6]
 
-        # Set global path
-        self.dir_path = dir_path
+        if is_dir:
+            # Set global path
+            self.dir_path = dir_path
 
-        # Search for a MONOLITH.CSV in the path, and if found then read it in,
-        # else, read in from the three default files
-        if(detect_monolith(dir_path)):
-            read_monolith()
+            # Search for a MONOLITH.CSV in the path, and if found then read it in,
+            # else, read in from the three default files
+            if(detect_monolith(dir_path)):
+                read_monolith()
+            else:
+                no_monolith()
         else:
-            no_monolith()
-        
-        # Finally, load in the config file
+            #Set global path
+            self.dir_path = os.path.dirname(dir_path)
+            read_from_csv()
+            
+            # Finally, load in the config file
         load_config()
 
     # Function to make a 2D Matplotlib plot with the given options. If the optional parameters are
@@ -848,13 +881,16 @@ class MizzouDataTool(QMainWindow):
         file_path_layout = QHBoxLayout()
         file_path_label = QLabel("File Path:")
         self.file_path_input = QLineEdit()
-        browse_button = QPushButton("Browse")
+        browse_button = QPushButton("Browse Folder")
+        browse_file_button = QPushButton("Browse File")
         generate_df_button = QPushButton("Generate Data Frame")
+        generate_df_button.setObjectName("generate_df_button")
         save_df_button = QPushButton("Save Data Frame")
         save_df_button.setObjectName("save_df_button")
         file_path_layout.addWidget(file_path_label)
         file_path_layout.addWidget(self.file_path_input)
         file_path_layout.addWidget(browse_button)
+        file_path_layout.addWidget(browse_file_button)
         file_path_layout.addWidget(generate_df_button)
         file_path_layout.addWidget(save_df_button)
         main_layout.addLayout(file_path_layout)
@@ -1021,7 +1057,8 @@ class MizzouDataTool(QMainWindow):
         self.zen_mode_button.setEnabled(True)
 
         # Connect signals
-        browse_button.clicked.connect(self.browse_file)
+        browse_button.clicked.connect(self.browse_folder)
+        browse_file_button.clicked.connect(self.browse_file)
         generate_df_button.clicked.connect(self.generate_data_frame)
         save_df_button.clicked.connect(self.save_data_frame)
 
@@ -1082,7 +1119,7 @@ class MizzouDataTool(QMainWindow):
         axis_dropdown = QComboBox()
         axis_dropdown.setObjectName("axis_dropdown_" + axis)
         axis_dropdown.setMaximumHeight(25)
-        axis_dropdown.currentIndexChanged.connect(lambda: self.update_axis_inputs(axis_dropdown))
+        axis_dropdown.currentIndexChanged.connect(lambda: self.update_axis_inputs(axis))
         layout.addWidget(axis_dropdown)
 
         # Conversion Rate, Unit, and Precision Inputs
@@ -1166,7 +1203,7 @@ class MizzouDataTool(QMainWindow):
         return layout
 
     # Function which opens a sub dialog for the user to select the path to the data
-    def browse_file(self):
+    def browse_folder(self):
         """
         Opens a file dialog to browse for a file path.
         """
@@ -1174,8 +1211,24 @@ class MizzouDataTool(QMainWindow):
         if file_path:
             self.file_path_input.setText(file_path)
             self.log_message("Directory selected")
+            self.findChild(QWidget, "generate_df_button").setStyleSheet("background-color: #0BA87A")
         else:
+            self.findChild(QWidget, "generate_df_button").setStyleSheet("background-color: none")
             self.log_message("directory selection cancelled")
+
+    # Function which opens a sub dialog for the user to select the path to a specific file
+    def browse_file(self):
+        """
+        Opens a file dialog to browse for a file.
+        """
+        file_path = QFileDialog.getOpenFileName(self, "Select File", "", "CSV Files (*.csv)")[0]
+        if file_path:
+            self.file_path_input.setText(file_path)
+            self.log_message("File selected")
+            self.findChild(QWidget, "generate_df_button").setStyleSheet("background-color: #0BA87A")
+        else:
+            self.findChild(QWidget, "generate_df_button").setStyleSheet("background-color: none")
+            self.log_message("File selection cancelled")
 
     # Function which generates the data frame from the given path and enables all window functions
     def generate_data_frame(self):
@@ -1185,22 +1238,31 @@ class MizzouDataTool(QMainWindow):
         """
         self.log_message("Attempting Data Frame Generation")
         self.data_file_path = self.file_path_input.text()
-        if(os.path.exists(str(self.data_file_path) + '/100HZLOG.CSV')) and (os.path.exists(str(self.data_file_path) + '/10HZLOG.CSV')) and (os.path.exists(str(self.data_file_path) + '/1HZLOG.CSV')):
-            self.data_frame = Dataframe()
-            self.data_frame.parse_data(self.data_file_path)
-            self.data_frame_generated = True
-            self.set_elements_enabled(True)
-            self.toggle_z_axis(False)
-            self.use_z_axis_checkbox.setChecked(False)
-            self.apply_z_as_color_checkbox.setChecked(False)
-            self.log_message("Data Frame has been generated!")
-            self.populate_axis_dropdowns(self.data_frame.headers)
-            if os.path.exists(str(self.data_file_path) + '/MONOLITH.CSV'):
-                self.findChild(QWidget, "save_df_button").setStyleSheet("background-color: none")
+        if os.path.isdir(self.data_file_path):
+            if(os.path.exists(str(self.data_file_path) + '/100HZLOG.CSV')) and (os.path.exists(str(self.data_file_path) + '/10HZLOG.CSV')) and (os.path.exists(str(self.data_file_path) + '/1HZLOG.CSV')):
+                self.generate(True)
             else:
-                self.findChild(QWidget, "save_df_button").setStyleSheet("background-color: #0BA87A")
+                self.log_message("An error occured please make sure that the 3 files needed exist in that directory.")
+        elif os.path.isfile(self.data_file_path):
+            self.generate(False)
         else:
-            self.log_message("An error occured please make sure that the 3 files needed exist in that directory.")
+             self.log_message("An error occured, please make sure that the file is of type .csv or a directory")
+
+    # Helper function to generate all the data as a data frame
+    def generate(self, is_dir):
+        self.findChild(QWidget, "generate_df_button").setStyleSheet("background-color: none")
+        self.data_frame = Dataframe()
+        self.data_frame.parse_data(self.data_file_path, is_dir)
+        self.data_frame_generated = True
+        self.set_elements_enabled(True)
+        self.toggle_z_axis(False)
+        self.use_z_axis_checkbox.setChecked(False)
+        self.log_message("Data Frame has been generated!")
+        self.populate_axis_dropdowns(self.data_frame.headers)
+        if os.path.exists(str(self.data_file_path) + '/MONOLITH.CSV'):
+            self.findChild(QWidget, "save_df_button").setStyleSheet("background-color: none")
+        else:
+            self.findChild(QWidget, "save_df_button").setStyleSheet("background-color: #0BA87A")
 
     # Function to async log to the terminal after the save process
     def finished_save(self, result):
@@ -1237,6 +1299,15 @@ class MizzouDataTool(QMainWindow):
         """
         self.terminal.append(message)
 
+    # Function which can be used to display error messages as popout windows
+    def show_error_dialog(self, message):
+        error_msg = QMessageBox()
+        error_msg.setIcon(QMessageBox.Icon.Critical)
+        error_msg.setText("Error")
+        error_msg.setInformativeText(message)
+        error_msg.setWindowTitle("Error")
+        error_msg.exec()
+
     # Function to populate the axis dropdowns with the available headers from the data
     def populate_axis_dropdowns(self, options_dict):
         """
@@ -1261,11 +1332,10 @@ class MizzouDataTool(QMainWindow):
 
     # Function to automatically update the axis input fields when a name is selected from the 
     # dropdown menu. These are pulled from the stored DataTypes.
-    def update_axis_inputs(self, dropdown: QWidget):
-        selected_item = dropdown.currentText()
+    def update_axis_inputs(self, axis):
+        selected_item = self.findChild(QWidget, "axis_dropdown_" + axis).currentText()
         if selected_item in self.data_frame.headers:
             data_type = self.data_frame.headers[selected_item]
-            axis = dropdown.objectName()[-1]
             central_widget = self.findChild(QWidget, name = "central_widget")
 
             # Get the appropriate inputs based on their object names
@@ -1348,6 +1418,11 @@ class MizzouDataTool(QMainWindow):
             self.findChild(QWidget, "save_button_" + axis).setStyleSheet("background-color: none")
             self.findChild(QWidget, "save_df_button").setStyleSheet("background-color: #0BA87A")
 
+            # Ensure that all other axes are updated, to prevent out-of-date issues
+            self.update_axis_inputs("X")
+            self.update_axis_inputs("Y")
+            self.update_axis_inputs("Z")
+
     # Function to generate a graph into the canvas from all of the selected options and dropdowns
     def generate_graph(self, return_params):
         central_widget = self.findChild(QWidget, name = "central_widget")
@@ -1398,8 +1473,15 @@ class MizzouDataTool(QMainWindow):
                 else: plot_type = 2
                 return x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, [x_selection, y_selection, z_selection], title, remove_till_in_range, enable_grid, enforce_color_range, enforce_square, use_lines
         except Exception as e:
-            self.log_message("Don't do that!!!")
-            self.log_message(str(e))
+            err_type = type(e).__name__
+            if err_type == "TypeError":
+                self.log_message("Error: Cannot create graph from given data type")
+                if self.zen:
+                    self.show_error_dialog("Cannot create graph from given data type")
+            else:
+                self.log_message("Error: Encountered an unexpected error when attempting to graph.")
+                if self.zen:
+                        self.show_error_dialog("Encountered an unexpected error when attempting to graph.")
 
     # Function to pop out a full screen window with the currently selected graph options. This
     # window will behave as a fully independant graph, and can be translated and rescaled
@@ -1430,19 +1512,12 @@ class MizzouDataTool(QMainWindow):
             with open(path[0], 'rb') as file:
                 pickled_object = pickle.load(file)
 
-            self.canvas.figure.clear()
-            
-            figure = self.canvas.figure
-            if pickled_object.plot_type == 0:
-                self.data_frame.make_plot_2D(figure, pickled_object.names, pickled_object.plot_title, pickled_object.remove_till_in_range, pickled_object.enable_grid, pickled_object.enforce_square, pickled_object.enable,
-                True, pickled_object.x_data, pickled_object.x_dataType, pickled_object.y_data, pickled_object.y_dataType)
-            elif pickled_object.plot_type == 1:
-                self.data_frame.make_plot_3D_color(figure, pickled_object.names, pickled_object.plot_title, pickled_object.remove_till_in_range, pickled_object.enable_grid, pickled_object.enforce_color_range, pickled_object.enforce_square, 
-                pickled_object.enable, True, pickled_object.x_data, pickled_object.x_dataType, pickled_object.y_data, pickled_object.y_dataType, pickled_object.z_data, pickled_object.z_dataType)
-            else:
-                self.data_frame.make_plot_3D(figure, pickled_object.names, pickled_object.plot_title, pickled_object.remove_till_in_range, pickled_object.enable_grid, pickled_object.enforce_square, pickled_object.enable,
-                True, pickled_object.x_data, pickled_object.x_dataType, pickled_object.y_data, pickled_object.y_dataType, pickled_object.z_data, pickled_object.z_dataType)
-            self.canvas.draw()
+            w = BreakoutWindow()
+            w.fullscreen_graph(pickled_object.x_data, pickled_object.x_dataType, pickled_object.y_data, pickled_object.y_dataType, pickled_object.z_data, pickled_object.z_dataType, pickled_object.plot_type, pickled_object.names, 
+                               pickled_object.plot_title, pickled_object.remove_till_in_range, pickled_object.enable_grid,pickled_object. enforce_color_range, pickled_object.enforce_square, pickled_object.enable)
+            w.show_new_window()
+            self.array_window.append(w)
+
         except Exception as e:
             self.log_message("Open Graph Cancelled or incorrect file was used")
             self.log_message(str(e))
@@ -1484,12 +1559,15 @@ class MizzouDataTool(QMainWindow):
     # Function which graphs from the preset graphs by setting the dropdown menus and calling the
     # standard graphing function
     def populate_preset_graph(self, x_sel, y_sel, z_sel, use_z, z_as_color):
-        self.findChild(QWidget, "axis_dropdown_X").setCurrentIndex(self.data_frame.headers[x_sel].index)
-        self.findChild(QWidget, "axis_dropdown_Y").setCurrentIndex(self.data_frame.headers[y_sel].index)
-        self.findChild(QWidget, "axis_dropdown_Z").setCurrentIndex(self.data_frame.headers[z_sel].index)
-        self.use_z_axis_checkbox.setChecked(use_z)
-        self.apply_z_as_color_checkbox.setChecked(z_as_color)
-        self.generate_graph(False)
+        if x_sel in self.data_frame.headers and y_sel in self.data_frame.headers and z_sel in self.data_frame.headers:
+            self.findChild(QWidget, "axis_dropdown_X").setCurrentIndex(self.data_frame.headers[x_sel].index)
+            self.findChild(QWidget, "axis_dropdown_Y").setCurrentIndex(self.data_frame.headers[y_sel].index)
+            self.findChild(QWidget, "axis_dropdown_Z").setCurrentIndex(self.data_frame.headers[z_sel].index)
+            self.use_z_axis_checkbox.setChecked(use_z)
+            self.apply_z_as_color_checkbox.setChecked(z_as_color)
+            self.generate_graph(False)
+        else:
+            self.log_message("Error: Data headers for preset not found in data")
 
     # Function which pulls info from the PRESETS.CSV file based on the currently selected preset
     # and then makes a call to graph that preset option.

@@ -56,13 +56,12 @@ containing the csv files with the data they want to access. This folder should i
 other non-data files. Note that when saving data the application will create a MONOLITH.CSV file. 
 This should not be modified directly, and is intended to be interacted with purely through the app.
 
-**VERY IMPORTANT!: THE FOLDER MUST CONTAIN 3 DATA FILES NAMED "1HZLOG.CSV", "10HZLOG.CSV", and 
-"100HZLOG.CSV". EACH OF THESE FILES MUST BE IN CSV FORMAT WITH A SINGLE HEADER LINE CONSISTING OF
-DATA NAMES. EACH OF THESE FILES MUST HAVE A COLUMN NAMED "Time" AS THIS WILL BE USED TO COMPILE THE
-DATA TOGETHER.**
+**VERY IMPORTANT!: FOR LOADING FROM A DIRECTORY, THE FOLDER MUST CONTAIN 3 DATA FILES NAMED
+"1HZLOG.CSV", "10HZLOG.CSV", and "100HZLOG.CSV". EACH OF THESE FILES MUST BE IN CSV FORMAT WITH A 
+SINGLE HEADER LINE CONSISTING OF DATA NAMES. EACH OF THESE FILES MUST HAVE A COLUMN NAMED "Time" AS
+THIS WILL BE USED TO COMPILE THE DATA TOGETHER.**
 
-If only one CSV is desired, please name it "100HZLOG.CSV" and create files with the other two names
-and only the contents "Time" This will allow only one CSV to be used.
+If only one CSV is desired, use the "Browse File" option.
 
 ### Simplest Usage Case
 1. Open the app
@@ -74,16 +73,22 @@ hides the terminal, which will inform the user of error states occuring.
 6. Click the "Generate Graph" button to display the graph on the embedded canvas.
 
 ### Description of Functionality (Zen Mode Only)
-- Browse:
+- Browse Folder:
     
     Opens a file explorer which can be used to select the folder containing the data. Please see above
     for requirements of this folder and the data format itself.
+
+- Browse File:
+    
+    Opens a file explorer which can be used to select the file containing the data. This must be in
+    "standard" CSV format.
 
 - Generate Data Frame:
 
     This button is used to process the data from the given folder. During this process the app will
     freeze and inputs will not register. We have experienced <1 Second per 100k lines of delay on
     this load operation, but this can still build up to a substantial wait time for very large data.
+    This button changes to green when data has been selected but not generated.
 
 - Save Data Frame:
 
@@ -228,7 +233,8 @@ hides the terminal, which will inform the user of error states occuring.
     pickle, a python object serialization tool. These objects are stored as .MRGO files (Mizzou Racing
     Graph Objects), and can be loaded back in with the "Open Saved Graph" feature. Note that graphs are
     stored with their data and header info, so these graphs do not need their original data to be also
-    loaded, and cannot be modified and saved again once loaded up.
+    loaded, and cannot be modified and saved again once loaded up. Saved graphs will be opened as
+    popout window graphs.
 
 - Clear Graph
 
@@ -268,9 +274,10 @@ hides the terminal, which will inform the user of error states occuring.
 
 This code is implmented using mainly python3, PyQt6, and matplotlib. There are abundant resources
 online for learning how to use these. The executable file was created using pyinstaller. If changes
-are made to the /dev/data_viewer.py, an undated .exe can be made with:
+are made to the /dev/data_viewer.py, an undated .exe can be made with the following command run
+from the root directory:
 ```
-pyinstaller --onefile --icon=../dist/mrlogo.ico -w 'data_viewer.py'
+pyinstaller --onefile --icon './dist/mrlogo.ico' -w './dev/data_viewer.py'
 ```
 
 ### Contributing

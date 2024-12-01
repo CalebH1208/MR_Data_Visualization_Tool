@@ -1,2 +1,2 @@
 name,x_selection,y_selection,z_selection,use_z_axis,use_z_axis_as_color
-Course Map,longitude,lattitude,MPH,True,True
+Course Map,longitude,lattitude,MPH,True,True,longitude,lattitude,MPH,True,True
