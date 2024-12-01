@@ -24,7 +24,7 @@ maximum customizability with the format of the data coming in from the CSV
 - Allow saving and loading of preset graphing setups
 - Allow saving and loading of graphs themselves with all their options and data
 
-## Useage Guide
+## Usage Guide
 ### Installation
 It is first recommended to have an updated version of git, python3, PyQt6, matplotlib, and pickle
 Instruction for these can be found plentifully elsewhere.
@@ -43,6 +43,11 @@ python3 data_viewer.py
 ```
 5. If the python works but the executable does not, see the instructions for creating a new
 executable below
+
+### Updating
+In order to update the program, please run the "updateDataViewer.bat" file by double-clicking on
+it. Note that this will overwrite any current changes made to the source code and any local files
+stored in the project folder.
 
 ### File Structure
 This repo is split into two main sectiond, /dev and /dist. Both contain identical copies of the 
@@ -279,6 +284,8 @@ from the root directory:
 ```
 pyinstaller --onefile --icon './dist/mrlogo.ico' -w './dev/data_viewer.py'
 ```
+Please note that the updateDataViewer.bat file will overwrite all local changes, and is not
+recommended for use by developers.
 
 ### Contributing
 

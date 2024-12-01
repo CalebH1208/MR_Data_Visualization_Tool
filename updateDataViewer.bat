@@ -27,7 +27,8 @@ IF %ERRORLEVEL% NEQ 0 (
     )
 ) else (
     echo Current directory is a Git repository. Pulling the latest changes...
-    git pull --force
+    git fetch --all
+    git reset --hard origin/main
     IF %ERRORLEVEL% NEQ 0 (
         echo Failed to pull the latest changes. Please check your repository configuration.
         pause
