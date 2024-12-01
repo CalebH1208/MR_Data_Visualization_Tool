@@ -1512,19 +1512,12 @@ class MizzouDataTool(QMainWindow):
             with open(path[0], 'rb') as file:
                 pickled_object = pickle.load(file)
 
-            self.canvas.figure.clear()
-            
-            figure = self.canvas.figure
-            if pickled_object.plot_type == 0:
-                self.data_frame.make_plot_2D(figure, pickled_object.names, pickled_object.plot_title, pickled_object.remove_till_in_range, pickled_object.enable_grid, pickled_object.enforce_square, pickled_object.enable,
-                True, pickled_object.x_data, pickled_object.x_dataType, pickled_object.y_data, pickled_object.y_dataType)
-            elif pickled_object.plot_type == 1:
-                self.data_frame.make_plot_3D_color(figure, pickled_object.names, pickled_object.plot_title, pickled_object.remove_till_in_range, pickled_object.enable_grid, pickled_object.enforce_color_range, pickled_object.enforce_square, 
-                pickled_object.enable, True, pickled_object.x_data, pickled_object.x_dataType, pickled_object.y_data, pickled_object.y_dataType, pickled_object.z_data, pickled_object.z_dataType)
-            else:
-                self.data_frame.make_plot_3D(figure, pickled_object.names, pickled_object.plot_title, pickled_object.remove_till_in_range, pickled_object.enable_grid, pickled_object.enforce_square, pickled_object.enable,
-                True, pickled_object.x_data, pickled_object.x_dataType, pickled_object.y_data, pickled_object.y_dataType, pickled_object.z_data, pickled_object.z_dataType)
-            self.canvas.draw()
+            w = BreakoutWindow()
+            w.fullscreen_graph(pickled_object.x_data, pickled_object.x_dataType, pickled_object.y_data, pickled_object.y_dataType, pickled_object.z_data, pickled_object.z_dataType, pickled_object.plot_type, pickled_object.names, 
+                               pickled_object.plot_title, pickled_object.remove_till_in_range, pickled_object.enable_grid,pickled_object. enforce_color_range, pickled_object.enforce_square, pickled_object.enable)
+            w.show_new_window()
+            self.array_window.append(w)
+
         except Exception as e:
             self.log_message("Open Graph Cancelled or incorrect file was used")
             self.log_message(str(e))
