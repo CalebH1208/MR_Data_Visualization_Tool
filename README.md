@@ -272,9 +272,10 @@ hides the terminal, which will inform the user of error states occuring.
 
 This code is implmented using mainly python3, PyQt6, and matplotlib. There are abundant resources
 online for learning how to use these. The executable file was created using pyinstaller. If changes
-are made to the /dev/data_viewer.py, an undated .exe can be made with:
+are made to the /dev/data_viewer.py, an undated .exe can be made with the following command run
+from the root directory:
 ```
-pyinstaller --onefile --icon=../dist/mrlogo.ico -w 'data_viewer.py'
+pyinstaller --onefile --icon './dist/mrlogo.ico' -w './dev/data_viewer.py'
 ```
 
 ### Contributing
