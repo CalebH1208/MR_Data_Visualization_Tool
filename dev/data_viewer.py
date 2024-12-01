@@ -180,6 +180,15 @@ class Dataframe:
 
             for i in indices:
                 temp_dict[names[i]] = DataType(index=(i))
+
+            # Consumes all repeated headder lines until where data would be
+            while True:
+                location = file.tell()
+                line = file.readline().rstrip().split(",")
+                if line[0] != "Time":
+                    file.seek(location)
+                    break
+
             return temp_dict
 
         # Function which reads in the header v2 format, which consists of four header lines.
@@ -268,7 +277,7 @@ class Dataframe:
             if self.header_version == 1:
                 self.headers = header_v1(file100)
             if self.header_version == 2:
-                self.headers = header_v2(file100)
+                self.headers = header_v2(file100)\
             
             offset = 0
             while True:
@@ -278,7 +287,9 @@ class Dataframe:
                 if len(line) > len(self.headers):
                     continue
                 if line[0] == "Time":
+                    if len(self.df) <= 1: continue
                     offset = self.df[-1][0]
+                    print("Appending", offset)
                     self.restarts.append(offset)
                     continue
                 line = convert_list_to_num(line)
@@ -1239,6 +1250,7 @@ class MizzouDataTool(QMainWindow):
         self.data_frame_generated = True
         self.set_elements_enabled(True)
         self.toggle_z_axis(False)
+        self.use_z_axis_checkbox.setChecked(False)
         self.log_message("Data Frame has been generated!")
         self.populate_axis_dropdowns(self.data_frame.headers)
         if os.path.exists(str(self.data_file_path) + '/MONOLITH.CSV'):
