@@ -88,6 +88,7 @@ hides the terminal, which will inform the user of error states occuring.
     This button is used to process the data from the given folder. During this process the app will
     freeze and inputs will not register. We have experienced <1 Second per 100k lines of delay on
     this load operation, but this can still build up to a substantial wait time for very large data.
+    This button changes to green when data has been selected but not generated.
 
 - Save Data Frame:
 
