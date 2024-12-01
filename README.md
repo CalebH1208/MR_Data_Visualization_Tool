@@ -233,7 +233,8 @@ hides the terminal, which will inform the user of error states occuring.
     pickle, a python object serialization tool. These objects are stored as .MRGO files (Mizzou Racing
     Graph Objects), and can be loaded back in with the "Open Saved Graph" feature. Note that graphs are
     stored with their data and header info, so these graphs do not need their original data to be also
-    loaded, and cannot be modified and saved again once loaded up.
+    loaded, and cannot be modified and saved again once loaded up. Saved graphs will be opened as
+    popout window graphs.
 
 - Clear Graph
 
