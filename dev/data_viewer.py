@@ -412,23 +412,23 @@ class Dataframe:
             # Finally, load in the config file
         load_config()
 
-    # Function to make a 2D Matplotlib plot with the given options. If the optional parameters are
-    # passed, the data and dataTypes passed will be used, otherwise the stored data is used
-    def make_plot_2D(self, figure, names, plot_title, remove_data_till_in_range, enable_grid, enforce_square, connect_lines, saved_graph = False, x_data = None, x_passType = None, y_data = None, y_passType = None):
-        if not saved_graph:
-            x_dataType = self.headers[names[0]]
-            y_dataType = self.headers[names[1]]
+    # Function to make a 2D Matplotlib plot with the given options. If use_data is true, then the
+    # data within the graph object will be used, otherwise the data within self will be used
+    def make_plot_2D(self, figure, graph_object, use_data):
+        if not use_data:
+            x_dataType = self.headers[graph_object.names[0]]
+            y_dataType = self.headers[graph_object.names[1]]
 
             x_vals = [row[x_dataType.index] for row in self.df]
             y_vals = [row[y_dataType.index] for row in self.df]
         else:
-            x_dataType = x_passType
-            y_dataType = y_passType
+            x_dataType = graph_object.x_dataType
+            y_dataType = graph_object.y_dataType
 
-            x_vals = x_data
-            y_vals = y_data
+            x_vals = graph_object.x_data
+            y_vals = graph_object.y_data
 
-        if remove_data_till_in_range:
+        if graph_object.remove_data_till_in_range:
             while True:
                 x_vals[0] *= x_dataType.conv / x_dataType.precision
                 y_vals[0] *= y_dataType.conv / y_dataType.precision
@@ -483,16 +483,16 @@ class Dataframe:
 
         plot = figure.add_subplot(111)
 
-        if connect_lines:
+        if graph_object.connect_lines:
             plot.plot(x_vals, y_vals, marker='o', label='label')
         else:
             plot.scatter(x_vals, y_vals, marker='o', label='label')
-        plot.set_xlabel(names[0] + x_unit)
-        plot.set_ylabel(names[1] + y_unit)
-        plot.set_title(plot_title)
-        plot.grid(enable_grid)
+        plot.set_xlabel(graph_object.names[0] + x_unit)
+        plot.set_ylabel(graph_object.names[1] + y_unit)
+        plot.set_title(graph_object.plot_title)
+        plot.grid(graph_object.enable_grid)
         
-        if enforce_square:
+        if graph_object.enforce_square:
             max_range = max(
                 max(x_vals) - min(x_vals), 
                 max(y_vals) - min(y_vals), 
@@ -507,10 +507,12 @@ class Dataframe:
         else: plot.set_box_aspect(None)
     
     # Function to make a 2D Matplotlib plot with the given options and colored by a 3rd dimension. 
-    # If the optional parameters are passed, the data and dataTypes passed will be used, otherwise
-    # the stored data is used
-    def make_plot_3D_color(self, figure, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, connect_lines, saved_graph = False, x_data = None, x_passType = None, y_data = None, y_passType = None, z_data = None, z_passType = None):
-        if not saved_graph:
+    # If use_data is true, then the data within the graph object will be used, otherwise the data 
+    # within self will be used
+    def make_plot_3D_color(self, figure, graph_object, use_data):
+        names = graph_object.names
+
+        if not use_data:
             x_dataType = self.headers[names[0]]
             y_dataType = self.headers[names[1]]
             color_dataType = self.headers[names[2]]
@@ -519,13 +521,13 @@ class Dataframe:
             y_vals = [row[y_dataType.index] for row in self.df]
             color_vals = [row[color_dataType.index] for row in self.df]
         else:
-            x_dataType = x_passType
-            y_dataType = y_passType
-            color_dataType = z_passType
+            x_dataType = graph_object.x_dataType
+            y_dataType = graph_object.y_dataType
+            color_dataType = graph_object.z_dataType
 
-            x_vals = x_data
-            y_vals = y_data
-            color_vals = z_data
+            x_vals = graph_object.x_data
+            y_vals = graph_object.y_data
+            color_vals = graph_object.z_data
 
         ranges = [
             [x_dataType.range_low, x_dataType.range_high],
@@ -552,7 +554,7 @@ class Dataframe:
 
         labels = [names[0] + x_unit, names[1] + y_unit, names[2] + color_unit]
 
-        if remove_data_till_in_range:
+        if graph_object.remove_data_till_in_range:
             while True:
                 x_vals[0] *= convs[0] / precisions[0]
                 y_vals[0] *= convs[1] / precisions[1]
@@ -619,14 +621,14 @@ class Dataframe:
         plot = figure.add_subplot(111)
 
         # Plot the line connecting the points
-        if connect_lines:
+        if graph_object.connect_lines:
             plot.plot(x_vals, y_vals, color='black', label='Data Line', linewidth = 0.5)
         
         color_scale = 0
         color_scale_low = None
         color_scale_high = None
 
-        if enforce_color_range:
+        if graph_object.enforce_color_range:
             color_scale = (color_dataType.range_high - color_dataType.range_low) * 0.1 / 2
             color_scale_low = color_dataType.range_low - color_scale
             color_scale_high = color_dataType.range_high + color_scale
@@ -639,16 +641,16 @@ class Dataframe:
         cbar.set_label(labels[2])
 
         # Set plot attributes
-        plot.set_title(plot_title)
+        plot.set_title(graph_object.plot_title)
         plot.set_xlabel(labels[0])
         plot.set_ylabel(labels[1])
 
         # Enable grid if specified
-        if enable_grid:
+        if graph_object.enable_grid:
             plot.grid(True)
 
         # Enforce square aspect ratio if specified
-        if enforce_square:
+        if graph_object.enforce_square:
             max_range = max(
                 max(x_vals) - min(x_vals), 
                 max(y_vals) - min(y_vals), 
@@ -664,8 +666,9 @@ class Dataframe:
 
     # Function to make a 3D Matplotlib plot with the given options. If the optional parameters are
     # passed, the data and dataTypes passed will be used, otherwise the stored data is used
-    def make_plot_3D(self, figure, names, plot_title, remove_data_till_in_range, enable_grid, enforce_cube, connect_lines, saved_graph = False, x_data = None, x_passType = None, y_data = None, y_passType = None, z_data = None, z_passType = None):
-        if not saved_graph:
+    def make_plot_3D(self, figure, graph_object, use_data):
+        names = graph_object.names
+        if not use_data:
             x_dataType = self.headers[names[0]]
             y_dataType = self.headers[names[1]]
             z_dataType = self.headers[names[2]]
@@ -674,13 +677,13 @@ class Dataframe:
             y_vals = [row[y_dataType.index] for row in self.df]
             z_vals = [row[z_dataType.index] for row in self.df]
         else:
-            x_dataType = x_passType
-            y_dataType = y_passType
-            z_dataType = z_passType
+            x_dataType = graph_object.x_dataType
+            y_dataType = graph_object.y_dataType
+            z_dataType = graph_object.z_dataType
 
-            x_vals = x_data
-            y_vals = y_data
-            z_vals = z_data
+            x_vals = graph_object.x_data
+            y_vals = graph_object.y_data
+            z_vals = graph_object.z_data
 
         convs = [x_dataType.conv, y_dataType.conv, z_dataType.conv]
         ranges = [
@@ -708,7 +711,7 @@ class Dataframe:
         labels = [names[0] + x_unit, names[1] + y_unit, names[2] + z_unit]
 
 
-        if remove_data_till_in_range:
+        if graph_object.remove_data_till_in_range:
             while True:
                 x_vals[0] *= convs[0] / precisions[0]
                 y_vals[0] *= convs[1] / precisions[1]
@@ -777,7 +780,7 @@ class Dataframe:
         plot = figure.add_subplot(111, projection='3d')
 
         # Set labels and title
-        plot.set_title(plot_title)
+        plot.set_title(graph_object.plot_title)
         plot.set_xlabel(labels[0])
         plot.set_ylabel(labels[1])
         plot.set_zlabel(labels[2])
@@ -786,13 +789,13 @@ class Dataframe:
 
         plot.scatter(x_vals, y_vals, z_vals, edgecolor='none', alpha=0.8)
 
-        if connect_lines: plot.plot(x_vals, y_vals, z_vals)
+        if graph_object.connect_lines: plot.plot(x_vals, y_vals, z_vals)
 
         # Enable grid if specified
-        plot.grid(enable_grid)
+        plot.grid(graph_object.enable_grid)
 
         # Enforce cube aspect ratio if specified (not straightforward in 3D but can scale axes)
-        if enforce_cube:
+        if graph_object.enforce_square:
             max_range = max(
                 max(x_vals) - min(x_vals), 
                 max(y_vals) - min(y_vals), 
@@ -825,22 +828,22 @@ class MplCanvas(FigureCanvasQTAgg):
 
 # Class which will store all characteristic data of a graph, which can then be pickled into a 
 # bytestream and stored for later graphing
-class SavedGraph:
-    def __init__(self, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable):
+class GraphObject:
+    def __init__(self, plot_type, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, connect_lines):
+        self.plot_type = plot_type
         self.x_data = x_data
         self.x_dataType = x_dataType
         self.y_data = y_data
         self.y_dataType = y_dataType
         self.z_data = z_data
         self.z_dataType = z_dataType
-        self.plot_type = plot_type
         self.names = names
         self.plot_title = plot_title
-        self.remove_till_in_range = remove_data_till_in_range
+        self.remove_data_till_in_range = remove_data_till_in_range
         self.enable_grid = enable_grid
         self.enforce_color_range = enforce_color_range
         self.enforce_square = enforce_square
-        self.enable = enable
+        self.connect_lines = connect_lines
 
 # Main window class which holds the app
 class MizzouDataTool(QMainWindow):
@@ -1438,68 +1441,71 @@ class MizzouDataTool(QMainWindow):
         enable_grid = central_widget.findChild(QWidget, "enable_grid_lines_checkbox").isChecked()
         enforce_color_range = central_widget.findChild(QWidget, "enforce_color_range_checkbox").isChecked()
         enforce_square = central_widget.findChild(QWidget, "enforce_square_graph_checkbox").isChecked()
-        remove_till_in_range = central_widget.findChild(QWidget, "delete_till_in_range_checkbox").isChecked()
+        remove_data_till_in_range = central_widget.findChild(QWidget, "delete_till_in_range_checkbox").isChecked()
         use_custom_title = self.custom_plot_title_checkbox.isChecked()
-        use_lines = central_widget.findChild(QWidget, "line_between_points_checkbox").isChecked()
+        connect_lines = central_widget.findChild(QWidget, "line_between_points_checkbox").isChecked()
         if use_custom_title:
-            title = central_widget.findChild(QWidget, "custom_plot_title_line_edit").text()
+            plot_title = central_widget.findChild(QWidget, "custom_plot_title_line_edit").text()
         else:
             if z_enabled:
-                title = y_selection + " vs. " + x_selection + " vs. " + z_selection
+                plot_title = y_selection + " vs. " + x_selection + " vs. " + z_selection
             else:
-                title = y_selection + " vs. " + x_selection
+                plot_title = y_selection + " vs. " + x_selection
 
         self.canvas.figure.clear()
 
+        if not z_enabled: plot_type = 0
+        elif z_color: plot_type = 1
+        else: plot_type = 2
+
+        x_dataType = self.data_frame.headers[x_selection]
+        x_data = [row[x_dataType.index] for row in self.data_frame.df]
+        y_dataType = self.data_frame.headers[y_selection]
+        y_data = [row[y_dataType.index] for row in self.data_frame.df]
+        z_dataType = self.data_frame.headers[z_selection]
+        z_data = [row[z_dataType.index] for row in self.data_frame.df]
+
+        graph_object = GraphObject(plot_type, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, [x_selection, y_selection, z_selection], plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, connect_lines)
+
         figure = self.canvas.figure
-        try:
-            if not return_params:
-                if not z_enabled:
-                    self.data_frame.make_plot_2D(figure, [x_selection, y_selection], title, remove_till_in_range, enable_grid, enforce_square, use_lines)
-                elif z_color:
-                    self.data_frame.make_plot_3D_color(figure, [x_selection, y_selection, z_selection], title, remove_till_in_range, enable_grid, enforce_color_range, enforce_square, use_lines)
-                else:
-                    self.data_frame.make_plot_3D(figure, [x_selection, y_selection, z_selection], title, remove_till_in_range, enable_grid, enforce_square, use_lines)
-                self.canvas.draw()
+        # try:
+        if not return_params:
+            if plot_type == 0:
+                self.data_frame.make_plot_2D(figure, graph_object, False)
+            elif plot_type == 1:
+                self.data_frame.make_plot_3D_color(figure, graph_object, False)
             else:
-                x_dataType = self.data_frame.headers[x_selection]
-                x_data = [row[x_dataType.index] for row in self.data_frame.df]
-                y_dataType = self.data_frame.headers[y_selection]
-                y_data = [row[y_dataType.index] for row in self.data_frame.df]
-                z_dataType = self.data_frame.headers[z_selection]
-                z_data = [row[z_dataType.index] for row in self.data_frame.df]
-                if not z_enabled: plot_type = 0
-                elif z_color: plot_type = 1
-                else: plot_type = 2
-                return x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, [x_selection, y_selection, z_selection], title, remove_till_in_range, enable_grid, enforce_color_range, enforce_square, use_lines
-        except Exception as e:
-            err_type = type(e).__name__
-            if err_type == "TypeError":
-                self.log_message("Error: Cannot create graph from given data type")
-                if self.zen:
-                    self.show_error_dialog("Cannot create graph from given data type")
-            else:
-                self.log_message("Error: Encountered an unexpected error when attempting to graph.")
-                if self.zen:
-                        self.show_error_dialog("Encountered an unexpected error when attempting to graph.")
+                self.data_frame.make_plot_3D(figure, graph_object, False)
+            self.canvas.draw()
+        else:
+            return graph_object
+        # except Exception as e:
+        #     err_type = type(e).__name__
+        #     if err_type == "TypeError":
+        #         self.log_message("Error: Cannot create graph from given data type")
+        #         if self.zen:
+        #             self.show_error_dialog("Cannot create graph from given data type")
+        #     else:
+        #         self.log_message("Error: Encountered an unexpected error when attempting to graph.")
+        #         if self.zen:
+        #                 self.show_error_dialog("Encountered an unexpected error when attempting to graph.")
 
     # Function to pop out a full screen window with the currently selected graph options. This
     # window will behave as a fully independant graph, and can be translated and rescaled
     def full_screen_figure(self):
             w = BreakoutWindow()
-            x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable = self.generate_graph(True)
-            w.fullscreen_graph(x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable)
+            graph_object = self.generate_graph(True)
+            w.fullscreen_graph(graph_object)
             w.show_new_window()
             self.array_window.append(w)
 
     # Function to save a graph as a .MRGO bytestream. Uses docs.python.org/3/library/pickle.html
     def save_graph(self):
         try:
-            x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable = self.generate_graph(True)
-            save = SavedGraph(x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable)
-            name,ft = QFileDialog.getSaveFileName(self, "Save :)", "./","Mizzou Racing Graph Object (*.MRGO)")
+            graph_object = self.generate_graph(True)
+            name, ft = QFileDialog.getSaveFileName(self, "Save :)", "./","Mizzou Racing Graph Object (*.MRGO)")
             with open(name, 'wb') as file:
-                pickle.dump(save,file)
+                pickle.dump(graph_object, file)
         except Exception as e:
             self.log_message("Save Graph Cancelled or incorrect file was used")
             self.log_message(str(e))
@@ -1513,8 +1519,7 @@ class MizzouDataTool(QMainWindow):
                 pickled_object = pickle.load(file)
 
             w = BreakoutWindow()
-            w.fullscreen_graph(pickled_object.x_data, pickled_object.x_dataType, pickled_object.y_data, pickled_object.y_dataType, pickled_object.z_data, pickled_object.z_dataType, pickled_object.plot_type, pickled_object.names, 
-                               pickled_object.plot_title, pickled_object.remove_till_in_range, pickled_object.enable_grid,pickled_object. enforce_color_range, pickled_object.enforce_square, pickled_object.enable)
+            w.fullscreen_graph(pickled_object)
             w.show_new_window()
             self.array_window.append(w)
 
@@ -1808,6 +1813,9 @@ class BreakoutWindow(QMainWindow):
         central_widget.setObjectName("central_widget")
         self.setCentralWidget(central_widget)
 
+        # Make a dataframe object just for graphing
+        self.data_frame = Dataframe()
+
         # Canvas Section for Plots
         self.canvas = MplCanvas(width=5, height=4, dpi=200)
         self.toolbar = NavigationToolbar2QT(self.canvas, self)
@@ -1815,366 +1823,19 @@ class BreakoutWindow(QMainWindow):
         main_layout.addWidget(self.canvas)
         
     # Main function of the window, which accepts the data from the calling window and plots it
-    def fullscreen_graph(self, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, plot_type, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable):
+    def fullscreen_graph(self, graph_object):
         self.canvas.figure.clear()
         figure = self.canvas.figure
 
-        if plot_type == 0: self.make_plot_2D(figure, x_data, x_dataType, y_data, y_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_square, enable)
-        elif plot_type == 1: self.make_plot_3D_color(figure, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable)
-        else: self.make_plot_3D(figure, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_square, enable)
+        if graph_object.plot_type == 0: self.data_frame.make_plot_2D(figure, graph_object, True)
+        elif graph_object.plot_type == 1: self.data_frame.make_plot_3D_color(figure, graph_object, True)
+        else: self.data_frame.make_plot_3D(figure, graph_object, True)
 
         self.canvas.draw()
 
     # Function to call window as fullscreen popup
     def show_new_window(self):
         self.showMaximized()
-
-    # Near-copy of make_plot_2D function in Dataframe, but which accepts only explicit data
-    def make_plot_2D(self, figure, x_vals, x_dataType, y_vals, y_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_square, enable_lines):
-        if remove_data_till_in_range:
-            while True:
-                x_vals[0] *= x_dataType.conv / x_dataType.precision
-                y_vals[0] *= y_dataType.conv / y_dataType.precision
-                if x_vals[0] < x_dataType.range_low or x_vals[0] > x_dataType.range_high or y_vals[0] < y_dataType.range_low or y_vals[0] > y_dataType.range_high:
-                    x_vals.pop(0)
-                    y_vals.pop(0)
-                else:
-                    break
-        else:
-            if x_dataType.range_low is not None:
-                if (x_vals[0] < x_dataType.range_low or x_vals[0] > x_dataType.range_high) and x_dataType.start_pos is not None:
-                    x_vals[0] = x_dataType.start_pos
-
-            if y_dataType.range_low is not None:
-                if (y_vals[0] < y_dataType.range_low or y_vals[0] > y_dataType.range_high) and y_dataType.start_pos is not None:
-                    y_vals[0] = y_dataType.start_pos
-
-        i = 1
-        while i < len(y_vals):
-            try:
-                x_vals[i] *= x_dataType.conv / x_dataType.precision
-                y_vals[i] *= y_dataType.conv / y_dataType.precision
-                if x_dataType.range_low is not None:
-                    if x_vals[i] < x_dataType.range_low or x_vals[i] > x_dataType.range_high:
-                        x_vals[i] = x_vals[i-1]
-
-                if y_dataType.range_low is not None:
-                    if y_vals[i] < y_dataType.range_low or y_vals[i] > y_dataType.range_high:
-                        y_vals[i] = y_vals[i-1]
-
-                if x_dataType.max_step is not None:
-                    if abs(x_vals[i] - x_vals[i-1]) > x_dataType.max_step:
-                        x_vals[i] = x_vals[i-1]
-                        
-                if y_dataType.max_step is not None:
-                    if abs(y_vals[i] - y_vals[i-1]) > y_dataType.max_step:
-                        y_vals[i] = y_vals[i-1]
-
-            except TypeError:
-                print("type error")
-                print(i)
-            i += 1
-
-        if x_dataType.unit == "unknown": 
-            x_unit = ""
-        else:
-            x_unit = "(" + x_dataType.unit + ")"
-        if y_dataType.unit == "unknown":
-            y_unit = ""
-        else:
-            y_unit = "(" + y_dataType.unit + ")"
-
-        plot = figure.add_subplot(111)
-
-        if enable_lines:
-            plot.plot(x_vals, y_vals, marker='o', label='label')
-        else:
-            plot.scatter(x_vals, y_vals, marker='o', label='label')
-
-        plot.set_xlabel(names[0] + x_unit)
-        plot.set_ylabel(names[1] + y_unit)
-        plot.set_title(plot_title)
-        plot.grid(enable_grid)
-
-        if enforce_square:
-            max_range = max(
-                max(x_vals) - min(x_vals), 
-                max(y_vals) - min(y_vals), 
-            ) / 1.8
-
-            center_x = (max(x_vals) + min(x_vals)) / 2.0
-            center_y = (max(y_vals) + min(y_vals)) / 2.0
-
-            plot.set_xlim(center_x - max_range, center_x + max_range)
-            plot.set_ylim(center_y - max_range, center_y + max_range)
-            plot.set_box_aspect(1)
-        else: plot.set_box_aspect(None)
-    
-    # Near-copy of make_plot_3D_color function in Dataframe, but which accepts only explicit data
-    def make_plot_3D_color(self, figure, x_vals, x_dataType, y_vals, y_dataType, color_vals, color_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, enable_lines):
-        ranges = [
-            [x_dataType.range_low, x_dataType.range_high],
-            [y_dataType.range_low, y_dataType.range_high],
-            [color_dataType.range_low, color_dataType.range_high],
-        ]
-        convs = [x_dataType.conv, y_dataType.conv, color_dataType.conv]
-        precisions = [x_dataType.precision, y_dataType.precision, color_dataType.precision]
-        max_steps = [x_dataType.max_step, y_dataType.max_step, color_dataType.max_step]
-        starting_pos = [x_dataType.start_pos, y_dataType.start_pos, color_dataType.start_pos]
-
-        if x_dataType.unit == "unknown": 
-            x_unit = ""
-        else:
-            x_unit = "(" + x_dataType.unit + ")"
-        if y_dataType.unit == "unknown":
-            y_unit = ""
-        else:
-            y_unit = "(" + y_dataType.unit + ")"
-        if color_dataType.unit == "unknown":
-            color_unit = ""
-        else:
-            color_unit = "(" + color_dataType.unit + ")"
-
-        labels = [names[0] + x_unit, names[1] + y_unit, names[2] + color_unit]
-
-        if remove_data_till_in_range:
-            while True:
-                x_vals[0] *= convs[0] / precisions[0]
-                y_vals[0] *= convs[1] / precisions[1]
-                color_vals[0] *= convs[2] / precisions[2]
-                if (x_vals[0] < ranges[0][0] or x_vals[0] > ranges[0][1] or
-                    y_vals[0] < ranges[1][0] or y_vals[0] > ranges[1][1] or
-                    color_vals[0] < ranges[2][0] or color_vals[0] > ranges[2][1]):
-                    x_vals.pop(0)
-                    y_vals.pop(0)
-                    color_vals.pop(0)
-                else:
-                    break
-        else:
-            if ranges[0][0] is not None:
-                if (x_vals[0] < ranges[0][0] or x_vals[0] > ranges[0][1]) and starting_pos[0] is not None:
-                    x_vals[0] = starting_pos[0]
-
-            if ranges[1][0] is not None:
-                if (y_vals[0] < ranges[1][0] or y_vals[0] > ranges[1][1]) and starting_pos[1] is not None:
-                    y_vals[0] = starting_pos[1]
-
-            if ranges[2][0] is not None:
-                if (color_vals[0] < ranges[2][0] or color_vals[0] > ranges[2][1]) and starting_pos[2] is not None:
-                    color_vals[0] = starting_pos[2]
-
-        i = 1
-        while i < len(y_vals):
-            try:
-                x_vals[i] *= convs[0] / precisions[0]
-                y_vals[i] *= convs[1] / precisions[1]
-                color_vals[i] *= convs[2] / precisions[2]
-                if ranges[0] is not None:
-                    if x_vals[i] < ranges[0][0] or x_vals[i] > ranges[0][1]:
-                        x_vals[i] = x_vals[i-1]
-
-                if ranges[1] is not None:
-                    if y_vals[i] < ranges[1][0] or y_vals[i] > ranges[1][1]:
-                        y_vals[i] = y_vals[i-1]
-                
-                if ranges[2] is not None:
-                    if color_vals[i] < ranges[2][0] or color_vals[i] > ranges[2][1]:
-                        color_vals[i] = color_vals[i-1]
-
-                if max_steps[0] is not None:
-                    if abs(x_vals[i] - x_vals[i-1]) > max_steps[0]:
-                        x_vals[i] = x_vals[i-1]
-                        
-                if max_steps[1] is not None:
-                    if abs(y_vals[i] - y_vals[i-1]) > max_steps[1]:
-                        y_vals[i] = y_vals[i-1]
-                
-                if max_steps[2] is not None:
-                    if abs(color_vals[i] - color_vals[i-1]) > max_steps[2]:
-                        color_vals[i] = color_vals[i-1]
-
-            except TypeError:
-                print("type error")
-                print(i)
-                x_vals.pop(i)
-                y_vals.pop(i)
-                color_vals.pop(i)
-            i += 1
-
-        plot = figure.add_subplot(111)
-
-        # Plot the line connecting the points
-        if enable_lines :plot.plot(x_vals, y_vals, color='black', label='Data Line', linewidth = 0.5)
-
-        color_scale = 0
-        color_scale_low = None
-        color_scale_high = None
-
-        if enforce_color_range:
-            color_scale = (color_dataType.range_high - color_dataType.range_low) * 0.1 / 2
-            color_scale_low = color_dataType.range_low - color_scale
-            color_scale_high = color_dataType.range_high + color_scale
-
-        # Add colored scatter points
-        scatter = plot.scatter(x_vals, y_vals, c=color_vals, cmap='nipy_spectral', vmin = color_scale_low, vmax = color_scale_high, s=20)
-
-        # Add color bar
-        cbar = figure.colorbar(scatter, ax=plot)
-        cbar.set_label(labels[2])
-
-        # Set plot attributes
-        plot.set_title(plot_title)
-        plot.set_xlabel(labels[0])
-        plot.set_ylabel(labels[1])
-
-        # Enable grid if specified
-        if enable_grid:
-            plot.grid(True)
-
-        if enable_lines:
-            plot.plot(x_vals, y_vals, color='black', label='Data Line', linewidth = 0.5)
-
-        # Enforce square aspect ratio if specified
-        if enforce_square:
-            max_range = max(
-                max(x_vals) - min(x_vals), 
-                max(y_vals) - min(y_vals), 
-            ) / 1.8
-
-            center_x = (max(x_vals) + min(x_vals)) / 2.0
-            center_y = (max(y_vals) + min(y_vals)) / 2.0
-
-            plot.set_xlim(center_x - max_range, center_x + max_range)
-            plot.set_ylim(center_y - max_range, center_y + max_range)
-            plot.set_box_aspect(1)
-        else: plot.set_box_aspect(None)
-
-    # Near-copy of make_plot_3D function in Dataframe, but which accepts only explicit data
-    def make_plot_3D(self, figure, x_vals, x_dataType, y_vals, y_dataType, z_vals, z_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_cube, enable_lines):
-        convs = [x_dataType.conv, y_dataType.conv, z_dataType.conv]
-        ranges = [
-            [x_dataType.range_low, x_dataType.range_high],
-            [y_dataType.range_low, y_dataType.range_high],
-            [z_dataType.range_low, z_dataType.range_high],
-        ]
-        precisions = [x_dataType.precision, y_dataType.precision, z_dataType.precision]
-        max_steps = [x_dataType.max_step, y_dataType.max_step, z_dataType.max_step]
-        start_pos = [x_dataType.start_pos, y_dataType.start_pos, z_dataType.start_pos]
-
-        if x_dataType.unit == "unknown": 
-            x_unit = ""
-        else:
-            x_unit = "(" + x_dataType.unit + ")"
-        if y_dataType.unit == "unknown":
-            y_unit = ""
-        else:
-            y_unit = "(" + y_dataType.unit + ")"
-        if z_dataType.unit == "unknown":
-            z_unit = ""
-        else:
-            z_unit = "(" + z_dataType.unit + ")"
-
-        labels = [names[0] + x_unit, names[1] + y_unit, names[2] + z_unit]
-
-        if remove_data_till_in_range:
-            while True:
-                x_vals[0] *= convs[0] / precisions[0]
-                y_vals[0] *= convs[1] / precisions[1]
-                z_vals[0] *= convs[2] / precisions[2]
-                if (x_vals[0] < ranges[0][0] or x_vals[0] > ranges[0][1] or
-                    y_vals[0] < ranges[1][0] or y_vals[0] > ranges[1][1] or
-                    z_vals[0] < ranges[2][0] or z_vals[0] > ranges[2][1]):
-                    x_vals.pop(0)
-                    y_vals.pop(0)
-                    z_vals.pop(0)
-                else:
-                    break
-        else:
-            if ranges[0][0] is not None:
-                if (x_vals[0] < ranges[0][0] or x_vals[0] > ranges[0][1]) and start_pos[0] is not None:
-                    x_vals[0] = start_pos[0]
-
-            if ranges[1][0] is not None:
-                if (y_vals[0] < ranges[1][0] or y_vals[0] > ranges[1][1]) and start_pos[1] is not None:
-                    y_vals[0] = start_pos[1]
-
-            if ranges[2][0] is not None:
-                if (z_vals[0] < ranges[2][0] or z_vals[0] > ranges[2][1]) and start_pos[2] is not None:
-                    z_vals[0] = start_pos[2]
-
-        i = 0
-        while i < len(y_vals):
-            try:
-                x_vals[i] *= convs[0] / precisions[0]
-                y_vals[i] *= convs[1] / precisions[1]
-                z_vals[i] *= convs[2] / precisions[2]
-                if ranges[0] is not None:
-                    if x_vals[i] < ranges[0][0] or x_vals[i] > ranges[0][1]:
-                        x_vals[i] = x_vals[i-1]
-
-                if ranges[1] is not None:
-                    if y_vals[i] < ranges[1][0] or y_vals[i] > ranges[1][1]:
-                        y_vals[i] = y_vals[i-1]
-                
-                if ranges[2] is not None:
-                    if z_vals[i] < ranges[2][0] or z_vals[i] > ranges[2][1]:
-                        z_vals[i] = z_vals[i-1]
-
-                if max_steps[0] is not None:
-                    if abs(x_vals[i] - x_vals[i-1]) > max_steps[0]:
-                        x_vals[i] = x_vals[i-1]
-                        
-                if max_steps[1] is not None:
-                    if abs(y_vals[i] - y_vals[i-1]) > max_steps[1]:
-                        y_vals[i] = y_vals[i-1]
-                
-                if max_steps[2] is not None:
-                    if abs(z_vals[i] - z_vals[i-1]) > max_steps[2]:
-                        z_vals[i] = z_vals[i-1]
-
-            except TypeError:
-                print("type error")
-                print(i)
-                x_vals.pop(i)
-                y_vals.pop(i)
-                z_vals.pop(i)
-                i -= 1
-
-            i += 1
-
-        plot = figure.add_subplot(111, projection='3d')
-
-        # Set labels and title
-        plot.set_title(plot_title)
-        plot.set_xlabel(labels[0])
-        plot.set_ylabel(labels[1])
-        plot.set_zlabel(labels[2])
-
-        # Scatter plot for the 3D data
-        plot.scatter(x_vals, y_vals, z_vals, edgecolor='none', alpha=0.8)
-
-        if enable_lines:    plot.plot(x_vals, y_vals, z_vals)
-
-        # Enable grid if specified
-        plot.grid(enable_grid)
-
-        # Enforce cube aspect ratio if specified (not straightforward in 3D but can scale axes)
-        if enforce_cube:
-            max_range = max(
-                max(x_vals) - min(x_vals), 
-                max(y_vals) - min(y_vals), 
-                max(z_vals) - min(z_vals)
-            ) / 1.8
-
-            center_x = (max(x_vals) + min(x_vals)) / 2.0
-            center_y = (max(y_vals) + min(y_vals)) / 2.0
-            center_z = (max(z_vals) + min(z_vals)) / 2.0
-
-            plot.set_xlim(center_x - max_range, center_x + max_range)
-            plot.set_ylim(center_y - max_range, center_y + max_range)
-            plot.set_zlim(center_z - max_range, center_z + max_range)
-            plot.set_box_aspect(1)
-        else: plot.set_box_aspect(None)
 
 # Breakout window class used to store presets with a passed name. Called by main window. Returns
 # the entered name and wether or not the button was clicked, as exiting out of the window should
