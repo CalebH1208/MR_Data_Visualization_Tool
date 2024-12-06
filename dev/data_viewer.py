@@ -12,8 +12,8 @@
 
 import random
 import os
-os.environ["QT_API"] = "PyQt6"
-
+import numpy as np
+from scipy.optimize import curve_fit
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from matplotlib.figure import Figure
 from PyQt6.QtWidgets import (
@@ -24,6 +24,500 @@ from PyQt6.QtCore import Qt, QObject, QThread, pyqtSignal
 from PyQt6.QtGui import QPalette, QColor, QFont
 import sys
 import pickle
+
+class GraphStyle:
+    def __init__(self, show_min, show_max, show_stddev, trend_line_type, trend_line_color, polynomial_order, moving_average_length, marker_size, marker_color, marker_style, line_name):
+        self.show_min = show_min
+        self.show_max = show_max
+        self.show_stddev = show_stddev
+        self.trend_line_type = trend_line_type
+        self.trend_line_color = trend_line_color
+        self.polynomial_order = polynomial_order
+        self.moving_average_length = moving_average_length
+        self.marker_size = marker_size
+        self.marker_color = marker_color
+        self.marker_style = marker_style
+        self.line_name = line_name
+
+# Class which will store all characteristic data of a graph, which can then be pickled into a 
+# bytestream and stored for later graphing
+class GraphObject:
+    def __init__(self, plot_type, graph_style: GraphStyle, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, connect_points):
+        self.plot_type = plot_type
+        self.graph_style = graph_style
+        self.x_data = x_data
+        self.x_dataType = x_dataType
+        self.y_data = y_data
+        self.y_dataType = y_dataType
+        self.z_data = z_data
+        self.z_dataType = z_dataType
+        self.names = names
+        self.plot_title = plot_title
+        self.remove_data_till_in_range = remove_data_till_in_range
+        self.enable_grid = enable_grid
+        self.enforce_color_range = enforce_color_range
+        self.enforce_square = enforce_square
+        self.connect_points = connect_points
+
+def movingaverage(interval, window_size):
+    window= np.ones(int(window_size))/float(window_size)
+    return np.convolve(interval, window, 'same')
+
+def logarithm(x, a, b):
+    return a * np.log(x) + b
+
+def make_plot_2D(figure, graph_object: GraphObject):
+    x_dataType = graph_object.x_dataType
+    y_dataType = graph_object.y_dataType
+
+    x_vals = graph_object.x_data
+    y_vals = graph_object.y_data
+
+    if graph_object.remove_data_till_in_range:
+        while True:
+            x_vals[0] *= x_dataType.conv / x_dataType.precision
+            y_vals[0] *= y_dataType.conv / y_dataType.precision
+            if x_vals[0] < x_dataType.range_low or x_vals[0] > x_dataType.range_high or y_vals[0] < y_dataType.range_low or y_vals[0] > y_dataType.range_high:
+                x_vals.pop(0)
+                y_vals.pop(0)
+            else:
+                break
+    else:
+        if x_dataType.range_low is not None:
+            if (x_vals[0] < x_dataType.range_low or x_vals[0] > x_dataType.range_high) and x_dataType.start_pos is not None:
+                x_vals[0] = x_dataType.start_pos
+
+        if y_dataType.range_low is not None:
+            if (y_vals[0] < y_dataType.range_low or y_vals[0] > y_dataType.range_high) and y_dataType.start_pos is not None:
+                y_vals[0] = y_dataType.start_pos
+
+    i = 1
+    while i < len(y_vals):
+        try:
+            x_vals[i] *= x_dataType.conv / x_dataType.precision
+            y_vals[i] *= y_dataType.conv / y_dataType.precision
+            if x_dataType.range_low is not None:
+                if x_vals[i] < x_dataType.range_low or x_vals[i] > x_dataType.range_high:
+                    x_vals[i] = x_vals[i-1]
+
+            if y_dataType.range_low is not None:
+                if y_vals[i] < y_dataType.range_low or y_vals[i] > y_dataType.range_high:
+                    y_vals[i] = y_vals[i-1]
+
+            if x_dataType.max_step is not None:
+                if abs(x_vals[i] - x_vals[i-1]) > x_dataType.max_step:
+                    x_vals[i] = x_vals[i-1]
+                    
+            if y_dataType.max_step is not None:
+                if abs(y_vals[i] - y_vals[i-1]) > y_dataType.max_step:
+                    y_vals[i] = y_vals[i-1]
+
+        except TypeError:
+            print("type error")
+            print(i)
+        i += 1
+
+    if x_dataType.unit == "unknown": 
+        x_unit = ""
+    else:
+        x_unit = " (" + x_dataType.unit + ")"
+    if y_dataType.unit == "unknown":
+        y_unit = ""
+    else:
+        y_unit = " (" + y_dataType.unit + ")"
+
+    plot = figure.add_subplot(111)
+
+    if graph_object.connect_points:
+        plot.plot(x_vals, y_vals, label=None)
+    else:
+        plot.scatter(x_vals, y_vals, marker=graph_object.graph_style.marker_style, label=graph_object.graph_style.line_name, s=graph_object.graph_style.marker_size, c=graph_object.graph_style.marker_color)
+
+    if graph_object.graph_style.trend_line_type == "Linear":
+        coefficients = np.polyfit(x_vals, y_vals, 1)
+        trendline = np.poly1d(coefficients)
+        plot.plot(x_vals, trendline(x_vals), color=graph_object.graph_style.trend_line_color, label=None)
+
+    elif graph_object.graph_style.trend_line_type == "Polynomial":
+        coefficients = np.polyfit(x_vals, y_vals, graph_object.graph_style.polynomial_order)
+        poly_function = np.poly1d(coefficients)
+        plot.plot(x_vals, poly_function(x_vals), color=graph_object.graph_style.trend_line_color, label=None)
+
+    elif graph_object.graph_style.trend_line_type == "Moving Average":
+        y_avgs = movingaverage(y_vals, graph_object.graph_style.moving_average_length)
+        plot.plot(x_vals, y_avgs, color=graph_object.graph_style.trend_line_color, label=None)
+
+    elif graph_object.graph_style.trend_line_type == "Logarithmic":
+        params, _ = curve_fit(logarithm, x_vals, y_vals)
+        plot.plot(x_vals, logarithm(x_vals, *params), color=graph_object.graph_style.trend_line_color, label=None)
+
+    if graph_object.graph_style.line_name != "":
+        plot.legend()
+
+    plot.set_xlabel(graph_object.names[0] + x_unit)
+    plot.set_ylabel(graph_object.names[1] + y_unit)
+    plot.set_title(graph_object.plot_title)
+    plot.grid(graph_object.enable_grid)
+
+    plot_annotation = ""
+    if graph_object.graph_style.show_min:
+        plot_annotation = plot_annotation + "X Min: " + "{:.2f}".format(min(x_vals)) + " Y Min: " + "{:.2f}".format(min(y_vals))
+    if graph_object.graph_style.show_max:
+        plot_annotation = plot_annotation + "\n" + "X Max: " + "{:.2f}".format(max(x_vals)) + " Y Max: " + "{:.2f}".format(max(y_vals))
+    if graph_object.graph_style.show_stddev:
+        plot_annotation = plot_annotation + "\n" + "X StdDev: " + "{:.2f}".format(np.std(x_vals)) + " Y StdDev: " + "{:.2f}".format(np.std(y_vals))
+    if plot_annotation != "":
+        annotation = plot.annotate(text=plot_annotation, xy=(x_vals[0],y_vals[0]), bbox=dict(facecolor="white"), label = None)
+        annotation.draggable()
+
+    if graph_object.enforce_square:
+        max_range = max(
+            max(x_vals) - min(x_vals), 
+            max(y_vals) - min(y_vals), 
+        ) / 1.8
+
+        center_x = (max(x_vals) + min(x_vals)) / 2.0
+        center_y = (max(y_vals) + min(y_vals)) / 2.0
+
+        plot.set_xlim(center_x - max_range, center_x + max_range)
+        plot.set_ylim(center_y - max_range, center_y + max_range)
+        plot.set_box_aspect(1)
+    else: plot.set_box_aspect(None)
+
+def make_plot_3D_color(figure, graph_object: GraphObject):
+    names = graph_object.names
+
+    x_dataType = graph_object.x_dataType
+    y_dataType = graph_object.y_dataType
+    color_dataType = graph_object.z_dataType
+
+    x_vals = graph_object.x_data
+    y_vals = graph_object.y_data
+    color_vals = graph_object.z_data
+
+    ranges = [
+        [x_dataType.range_low, x_dataType.range_high],
+        [y_dataType.range_low, y_dataType.range_high],
+        [color_dataType.range_low, color_dataType.range_high],
+    ]
+    convs = [x_dataType.conv, y_dataType.conv, color_dataType.conv]
+    precisions = [x_dataType.precision, y_dataType.precision, color_dataType.precision]
+    max_steps = [x_dataType.max_step, y_dataType.max_step, color_dataType.max_step]
+    starting_pos = [x_dataType.start_pos, y_dataType.start_pos, color_dataType.start_pos]
+
+    if x_dataType.unit == "unknown": 
+        x_unit = ""
+    else:
+        x_unit = " (" + x_dataType.unit + ")"
+    if y_dataType.unit == "unknown":
+        y_unit = ""
+    else:
+        y_unit = " (" + y_dataType.unit + ")"
+    if color_dataType.unit == "unknown":
+        color_unit = ""
+    else:
+        color_unit = " (" + color_dataType.unit + ")"
+
+    labels = [names[0] + x_unit, names[1] + y_unit, names[2] + color_unit]
+
+    if graph_object.remove_data_till_in_range:
+        while True:
+            x_vals[0] *= convs[0] / precisions[0]
+            y_vals[0] *= convs[1] / precisions[1]
+            color_vals[0] *= convs[2] / precisions[2]
+            if (x_vals[0] < ranges[0][0] or x_vals[0] > ranges[0][1] or
+                y_vals[0] < ranges[1][0] or y_vals[0] > ranges[1][1] or
+                color_vals[0] < ranges[2][0] or color_vals[0] > ranges[2][1]):
+                x_vals.pop(0)
+                y_vals.pop(0)
+                color_vals.pop(0)
+            else:
+                break
+    else:
+        if ranges[0][0] is not None:
+            if (x_vals[0] < ranges[0][0] or x_vals[0] > ranges[0][1]) and starting_pos[0] is not None:
+                x_vals[0] = starting_pos[0]
+
+        if ranges[1][0] is not None:
+            if (y_vals[0] < ranges[1][0] or y_vals[0] > ranges[1][1]) and starting_pos[1] is not None:
+                y_vals[0] = starting_pos[1]
+
+        if ranges[2][0] is not None:
+            if (color_vals[0] < ranges[2][0] or color_vals[0] > ranges[2][1]) and starting_pos[2] is not None:
+                color_vals[0] = starting_pos[2]
+
+    i = 1
+    while i < len(y_vals):
+        try:
+            x_vals[i] *= convs[0] / precisions[0]
+            y_vals[i] *= convs[1] / precisions[1]
+            color_vals[i] *= convs[2] / precisions[2]
+            if ranges[0] is not None:
+                if x_vals[i] < ranges[0][0] or x_vals[i] > ranges[0][1]:
+                    x_vals[i] = x_vals[i-1]
+
+            if ranges[1] is not None:
+                if y_vals[i] < ranges[1][0] or y_vals[i] > ranges[1][1]:
+                    y_vals[i] = y_vals[i-1]
+            
+            if ranges[2] is not None:
+                if color_vals[i] < ranges[2][0] or color_vals[i] > ranges[2][1]:
+                    color_vals[i] = color_vals[i-1]
+
+            if max_steps[0] is not None:
+                if abs(x_vals[i] - x_vals[i-1]) > max_steps[0]:
+                    x_vals[i] = x_vals[i-1]
+                    
+            if max_steps[1] is not None:
+                if abs(y_vals[i] - y_vals[i-1]) > max_steps[1]:
+                    y_vals[i] = y_vals[i-1]
+            
+            if max_steps[2] is not None:
+                if abs(color_vals[i] - color_vals[i-1]) > max_steps[2]:
+                    color_vals[i] = color_vals[i-1]
+
+        except TypeError:
+            print("type error")
+            print(i)
+            x_vals.pop(i)
+            y_vals.pop(i)
+            color_vals.pop(i)
+        i += 1
+
+    plot = figure.add_subplot(111)
+
+    # Plot the line connecting the points
+    if graph_object.connect_points:
+        plot.plot(x_vals, y_vals, color='black', label=None, linewidth = 0.5)
+    
+    color_scale = 0
+    color_scale_low = None
+    color_scale_high = None
+
+    if graph_object.enforce_color_range:
+        color_scale = (color_dataType.range_high - color_dataType.range_low) * 0.1 / 2
+        color_scale_low = color_dataType.range_low - color_scale
+        color_scale_high = color_dataType.range_high + color_scale
+
+    # Add colored scatter points
+    scatter = plot.scatter(x_vals, y_vals, c=color_vals, cmap='nipy_spectral', vmin = color_scale_low, vmax = color_scale_high, marker=graph_object.graph_style.marker_style, label=graph_object.graph_style.line_name, s=graph_object.graph_style.marker_size)
+
+    # Add color bar
+    cbar = figure.colorbar(scatter, ax=plot)
+    cbar.set_label(labels[2])
+
+    if graph_object.graph_style.trend_line_type == "Linear":
+        coefficients = np.polyfit(x_vals, y_vals, 1)
+        trendline = np.poly1d(coefficients)
+        plot.plot(x_vals, trendline(x_vals), color=graph_object.graph_style.trend_line_color, label=None)
+
+    elif graph_object.graph_style.trend_line_type == "Polynomial":
+        coefficients = np.polyfit(x_vals, y_vals, graph_object.graph_style.polynomial_order)
+        poly_function = np.poly1d(coefficients)
+        plot.plot(x_vals, poly_function(x_vals), color=graph_object.graph_style.trend_line_color, label=None)
+
+    elif graph_object.graph_style.trend_line_type == "Moving Average":
+        y_avgs = movingaverage(y_vals, graph_object.graph_style.moving_average_length)
+        plot.plot(x_vals, y_avgs, color=graph_object.graph_style.trend_line_color, label=None)
+
+    elif graph_object.graph_style.trend_line_type == "Logarithmic":
+        params, _ = curve_fit(logarithm, x_vals, y_vals)
+        plot.plot(x_vals, logarithm(x_vals, *params), color=graph_object.graph_style.trend_line_color, label=None)
+
+    if graph_object.graph_style.line_name != "":
+        plot.legend()
+
+    # Set plot attributes
+    plot.set_title(graph_object.plot_title)
+    plot.set_xlabel(labels[0])
+    plot.set_ylabel(labels[1])
+
+    # Enable grid if specified
+    if graph_object.enable_grid:
+        plot.grid(True)
+
+    plot_annotation = ""
+    if graph_object.graph_style.show_min:
+        plot_annotation = plot_annotation + "X Min: " + "{:.2f}".format(min(x_vals)) + " Y Min: " + "{:.2f}".format(min(y_vals)) + " Color Min: " + "{:.2f}".format(min(color_vals))
+    if graph_object.graph_style.show_max:
+        plot_annotation = plot_annotation + "\n" + "X Max: " + "{:.2f}".format(max(x_vals)) + " Y Max: " + "{:.2f}".format(max(y_vals)) + " Color Max: " + "{:.2f}".format(max(color_vals))
+    if graph_object.graph_style.show_stddev:
+        plot_annotation = plot_annotation + "\n" + "X StdDev: " + "{:.2f}".format(np.std(x_vals)) + " Y StdDev: " + "{:.2f}".format(np.std(y_vals)) + " Color StdDev: " + "{:.2f}".format(np.std(color_vals))
+    if plot_annotation != "":
+        annotation = plot.annotate(text=plot_annotation, xy=(0,0), bbox=dict(facecolor="white"))
+        annotation.draggable()
+
+    # Enforce square aspect ratio if specified
+    if graph_object.enforce_square:
+        max_range = max(
+            max(x_vals) - min(x_vals), 
+            max(y_vals) - min(y_vals), 
+        ) / 1.8
+
+        center_x = (max(x_vals) + min(x_vals)) / 2.0
+        center_y = (max(y_vals) + min(y_vals)) / 2.0
+
+        plot.set_xlim(center_x - max_range, center_x + max_range)
+        plot.set_ylim(center_y - max_range, center_y + max_range)
+        plot.set_box_aspect(1)
+    else: plot.set_box_aspect(None)
+
+def make_plot_3D(figure, graph_object: GraphObject):
+    names = graph_object.names
+
+    x_dataType = graph_object.x_dataType
+    y_dataType = graph_object.y_dataType
+    z_dataType = graph_object.z_dataType
+
+    x_vals = graph_object.x_data
+    y_vals = graph_object.y_data
+    z_vals = graph_object.z_data
+
+    convs = [x_dataType.conv, y_dataType.conv, z_dataType.conv]
+    ranges = [
+        [x_dataType.range_low, x_dataType.range_high],
+        [y_dataType.range_low, y_dataType.range_high],
+        [z_dataType.range_low, z_dataType.range_high],
+    ]
+    precisions = [x_dataType.precision, y_dataType.precision, z_dataType.precision]
+    max_steps = [x_dataType.max_step, y_dataType.max_step, z_dataType.max_step]
+    start_pos = [x_dataType.start_pos, y_dataType.start_pos, z_dataType.start_pos]
+
+    if x_dataType.unit == "unknown": 
+        x_unit = ""
+    else:
+        x_unit = " (" + x_dataType.unit + ")"
+    if y_dataType.unit == "unknown":
+        y_unit = ""
+    else:
+        y_unit = " (" + y_dataType.unit + ")"
+    if z_dataType.unit == "unknown":
+        z_unit = ""
+    else:
+        z_unit = " (" + z_dataType.unit + ")"
+
+    labels = [names[0] + x_unit, names[1] + y_unit, names[2] + z_unit]
+
+
+    if graph_object.remove_data_till_in_range:
+        while True:
+            x_vals[0] *= convs[0] / precisions[0]
+            y_vals[0] *= convs[1] / precisions[1]
+            z_vals[0] *= convs[2] / precisions[2]
+            if (x_vals[0] < ranges[0][0] or x_vals[0] > ranges[0][1] or
+                y_vals[0] < ranges[1][0] or y_vals[0] > ranges[1][1] or
+                z_vals[0] < ranges[2][0] or z_vals[0] > ranges[2][1]):
+                x_vals.pop(0)
+                y_vals.pop(0)
+                z_vals.pop(0)
+            else:
+                break
+    else:
+        if ranges[0][0] is not None:
+            if (x_vals[0] < ranges[0][0] or x_vals[0] > ranges[0][1]) and start_pos[0] is not None:
+                x_vals[0] = start_pos[0]
+
+        if ranges[1][0] is not None:
+            if (y_vals[0] < ranges[1][0] or y_vals[0] > ranges[1][1]) and start_pos[1] is not None:
+                y_vals[0] = start_pos[1]
+
+        if ranges[2][0] is not None:
+            if (z_vals[0] < ranges[2][0] or z_vals[0] > ranges[2][1]) and start_pos[2] is not None:
+                z_vals[0] = start_pos[2]
+
+    i = 1
+    while i < len(y_vals):
+        try:
+            x_vals[i] *= convs[0] / precisions[0]
+            y_vals[i] *= convs[1] / precisions[1]
+            z_vals[i] *= convs[2] / precisions[2]
+            if ranges[0] is not None:
+                if x_vals[i] < ranges[0][0] or x_vals[i] > ranges[0][1]:
+                    x_vals[i] = x_vals[i-1]
+
+            if ranges[1] is not None:
+                if y_vals[i] < ranges[1][0] or y_vals[i] > ranges[1][1]:
+                    y_vals[i] = y_vals[i-1]
+            
+            if ranges[2] is not None:
+                if z_vals[i] < ranges[2][0] or z_vals[i] > ranges[2][1]:
+                    z_vals[i] = z_vals[i-1]
+
+            if max_steps[0] is not None:
+                if abs(x_vals[i] - x_vals[i-1]) > max_steps[0]:
+                    x_vals[i] = x_vals[i-1]
+                    
+            if max_steps[1] is not None:
+                if abs(y_vals[i] - y_vals[i-1]) > max_steps[1]:
+                    y_vals[i] = y_vals[i-1]
+            
+            if max_steps[2] is not None:
+                if abs(z_vals[i] - z_vals[i-1]) > max_steps[2]:
+                    z_vals[i] = z_vals[i-1]
+
+        except TypeError:
+            print("type error")
+            print(i)
+            x_vals.pop(i)
+            y_vals.pop(i)
+            z_vals.pop(i)
+            i -= 1
+
+        i += 1
+
+    plot = figure.add_subplot(111, projection='3d')
+
+    # Set labels and title
+    plot.set_title(graph_object.plot_title)
+    plot.set_xlabel(labels[0])
+    plot.set_ylabel(labels[1])
+    plot.set_zlabel(labels[2])
+
+    # Scatter plot for the 3D data
+
+    plot.scatter(x_vals, y_vals, z_vals, edgecolor='none', alpha=0.8, marker=graph_object.graph_style.marker_style, label=graph_object.graph_style.line_name, s=graph_object.graph_style.marker_size, c=graph_object.graph_style.marker_color)
+
+    if graph_object.connect_points: plot.plot(x_vals, y_vals, z_vals)
+
+    # Enable grid if specified
+    plot.grid(graph_object.enable_grid)
+
+    plot_annotation = ""
+    if graph_object.graph_style.show_min:
+        plot_annotation = plot_annotation + "X Min: " + "{:.2f}".format(min(x_vals)) + " Y Min: " + "{:.2f}".format(min(y_vals)) + " Z Min: " + "{:.2f}".format(min(z_vals))
+    if graph_object.graph_style.show_max:
+        plot_annotation = plot_annotation + "\n" + "X Max: " + "{:.2f}".format(max(x_vals)) + " Y Max: " + "{:.2f}".format(max(y_vals)) + " Z Max: " +  "{:.2f}".format(max(z_vals))
+    if graph_object.graph_style.show_stddev:
+        plot_annotation = plot_annotation + "\n" + "X StdDev: " + "{:.2f}".format(np.std(x_vals)) + " Y StdDev: " + "{:.2f}".format(np.std(y_vals)) + " Z StdDev: " +  "{:.2f}".format(np.std(z_vals))
+    if plot_annotation != "":
+        annotation = plot.annotate(text=plot_annotation, xy=(0,0), bbox=dict(facecolor="white"))
+        annotation.draggable()
+
+    # Enforce cube aspect ratio if specified (not straightforward in 3D but can scale axes)
+    if graph_object.enforce_square:
+        max_range = max(
+            max(x_vals) - min(x_vals), 
+            max(y_vals) - min(y_vals), 
+            max(z_vals) - min(z_vals)
+        ) / 1.8
+
+        center_x = (max(x_vals) + min(x_vals)) / 2.0
+        center_y = (max(y_vals) + min(y_vals)) / 2.0
+        center_z = (max(z_vals) + min(z_vals)) / 2.0
+
+        plot.set_xlim(center_x - max_range, center_x + max_range)
+        plot.set_ylim(center_y - max_range, center_y + max_range)
+        plot.set_zlim(center_z - max_range, center_z + max_range)
+        plot.set_box_aspect((1,1,1))
+    else: plot.set_box_aspect(None)
+
+def make_plot(figure, graph_object: GraphObject):
+    if graph_object.plot_type == 1:
+        make_plot_2D(figure, graph_object)
+    elif graph_object.plot_type == 2:
+        make_plot_3D_color(figure, graph_object)
+    else:
+        make_plot_3D(figure, graph_object)
 
 #################################################
 # Class: DataType
@@ -289,7 +783,6 @@ class Dataframe:
                 if line[0] == "Time":
                     if len(self.df) <= 1: continue
                     offset = self.df[-1][0]
-                    print("Appending", offset)
                     self.restarts.append(offset)
                     continue
                 line = convert_list_to_num(line)
@@ -412,406 +905,6 @@ class Dataframe:
             # Finally, load in the config file
         load_config()
 
-    # Function to make a 2D Matplotlib plot with the given options. If use_data is true, then the
-    # data within the graph object will be used, otherwise the data within self will be used
-    def make_plot_2D(self, figure, graph_object, use_data):
-        if not use_data:
-            x_dataType = self.headers[graph_object.names[0]]
-            y_dataType = self.headers[graph_object.names[1]]
-
-            x_vals = [row[x_dataType.index] for row in self.df]
-            y_vals = [row[y_dataType.index] for row in self.df]
-        else:
-            x_dataType = graph_object.x_dataType
-            y_dataType = graph_object.y_dataType
-
-            x_vals = graph_object.x_data
-            y_vals = graph_object.y_data
-
-        if graph_object.remove_data_till_in_range:
-            while True:
-                x_vals[0] *= x_dataType.conv / x_dataType.precision
-                y_vals[0] *= y_dataType.conv / y_dataType.precision
-                if x_vals[0] < x_dataType.range_low or x_vals[0] > x_dataType.range_high or y_vals[0] < y_dataType.range_low or y_vals[0] > y_dataType.range_high:
-                    x_vals.pop(0)
-                    y_vals.pop(0)
-                else:
-                    break
-        else:
-            if x_dataType.range_low is not None:
-                if (x_vals[0] < x_dataType.range_low or x_vals[0] > x_dataType.range_high) and x_dataType.start_pos is not None:
-                    x_vals[0] = x_dataType.start_pos
-
-            if y_dataType.range_low is not None:
-                if (y_vals[0] < y_dataType.range_low or y_vals[0] > y_dataType.range_high) and y_dataType.start_pos is not None:
-                    y_vals[0] = y_dataType.start_pos
-
-        i = 1
-        while i < len(y_vals):
-            try:
-                x_vals[i] *= x_dataType.conv / x_dataType.precision
-                y_vals[i] *= y_dataType.conv / y_dataType.precision
-                if x_dataType.range_low is not None:
-                    if x_vals[i] < x_dataType.range_low or x_vals[i] > x_dataType.range_high:
-                        x_vals[i] = x_vals[i-1]
-
-                if y_dataType.range_low is not None:
-                    if y_vals[i] < y_dataType.range_low or y_vals[i] > y_dataType.range_high:
-                        y_vals[i] = y_vals[i-1]
-
-                if x_dataType.max_step is not None:
-                    if abs(x_vals[i] - x_vals[i-1]) > x_dataType.max_step:
-                        x_vals[i] = x_vals[i-1]
-                        
-                if y_dataType.max_step is not None:
-                    if abs(y_vals[i] - y_vals[i-1]) > y_dataType.max_step:
-                        y_vals[i] = y_vals[i-1]
-
-            except TypeError:
-                print("type error")
-                print(i)
-            i += 1
-
-        if x_dataType.unit == "unknown": 
-            x_unit = ""
-        else:
-            x_unit = " (" + x_dataType.unit + ")"
-        if y_dataType.unit == "unknown":
-            y_unit = ""
-        else:
-            y_unit = " (" + y_dataType.unit + ")"
-
-        plot = figure.add_subplot(111)
-
-        if graph_object.connect_lines:
-            plot.plot(x_vals, y_vals, marker='o', label='label')
-        else:
-            plot.scatter(x_vals, y_vals, marker='o', label='label')
-        plot.set_xlabel(graph_object.names[0] + x_unit)
-        plot.set_ylabel(graph_object.names[1] + y_unit)
-        plot.set_title(graph_object.plot_title)
-        plot.grid(graph_object.enable_grid)
-        
-        if graph_object.enforce_square:
-            max_range = max(
-                max(x_vals) - min(x_vals), 
-                max(y_vals) - min(y_vals), 
-            ) / 1.8
-
-            center_x = (max(x_vals) + min(x_vals)) / 2.0
-            center_y = (max(y_vals) + min(y_vals)) / 2.0
-
-            plot.set_xlim(center_x - max_range, center_x + max_range)
-            plot.set_ylim(center_y - max_range, center_y + max_range)
-            plot.set_box_aspect(1)
-        else: plot.set_box_aspect(None)
-    
-    # Function to make a 2D Matplotlib plot with the given options and colored by a 3rd dimension. 
-    # If use_data is true, then the data within the graph object will be used, otherwise the data 
-    # within self will be used
-    def make_plot_3D_color(self, figure, graph_object, use_data):
-        names = graph_object.names
-
-        if not use_data:
-            x_dataType = self.headers[names[0]]
-            y_dataType = self.headers[names[1]]
-            color_dataType = self.headers[names[2]]
-
-            x_vals = [row[x_dataType.index] for row in self.df]
-            y_vals = [row[y_dataType.index] for row in self.df]
-            color_vals = [row[color_dataType.index] for row in self.df]
-        else:
-            x_dataType = graph_object.x_dataType
-            y_dataType = graph_object.y_dataType
-            color_dataType = graph_object.z_dataType
-
-            x_vals = graph_object.x_data
-            y_vals = graph_object.y_data
-            color_vals = graph_object.z_data
-
-        ranges = [
-            [x_dataType.range_low, x_dataType.range_high],
-            [y_dataType.range_low, y_dataType.range_high],
-            [color_dataType.range_low, color_dataType.range_high],
-        ]
-        convs = [x_dataType.conv, y_dataType.conv, color_dataType.conv]
-        precisions = [x_dataType.precision, y_dataType.precision, color_dataType.precision]
-        max_steps = [x_dataType.max_step, y_dataType.max_step, color_dataType.max_step]
-        starting_pos = [x_dataType.start_pos, y_dataType.start_pos, color_dataType.start_pos]
-
-        if x_dataType.unit == "unknown": 
-            x_unit = ""
-        else:
-            x_unit = " (" + x_dataType.unit + ")"
-        if y_dataType.unit == "unknown":
-            y_unit = ""
-        else:
-            y_unit = " (" + y_dataType.unit + ")"
-        if color_dataType.unit == "unknown":
-            color_unit = ""
-        else:
-            color_unit = " (" + color_dataType.unit + ")"
-
-        labels = [names[0] + x_unit, names[1] + y_unit, names[2] + color_unit]
-
-        if graph_object.remove_data_till_in_range:
-            while True:
-                x_vals[0] *= convs[0] / precisions[0]
-                y_vals[0] *= convs[1] / precisions[1]
-                color_vals[0] *= convs[2] / precisions[2]
-                if (x_vals[0] < ranges[0][0] or x_vals[0] > ranges[0][1] or
-                    y_vals[0] < ranges[1][0] or y_vals[0] > ranges[1][1] or
-                    color_vals[0] < ranges[2][0] or color_vals[0] > ranges[2][1]):
-                    x_vals.pop(0)
-                    y_vals.pop(0)
-                    color_vals.pop(0)
-                else:
-                    break
-        else:
-            if ranges[0][0] is not None:
-                if (x_vals[0] < ranges[0][0] or x_vals[0] > ranges[0][1]) and starting_pos[0] is not None:
-                    x_vals[0] = starting_pos[0]
-
-            if ranges[1][0] is not None:
-                if (y_vals[0] < ranges[1][0] or y_vals[0] > ranges[1][1]) and starting_pos[1] is not None:
-                    y_vals[0] = starting_pos[1]
-
-            if ranges[2][0] is not None:
-                if (color_vals[0] < ranges[2][0] or color_vals[0] > ranges[2][1]) and starting_pos[2] is not None:
-                    color_vals[0] = starting_pos[2]
-
-        i = 1
-        while i < len(y_vals):
-            try:
-                x_vals[i] *= convs[0] / precisions[0]
-                y_vals[i] *= convs[1] / precisions[1]
-                color_vals[i] *= convs[2] / precisions[2]
-                if ranges[0] is not None:
-                    if x_vals[i] < ranges[0][0] or x_vals[i] > ranges[0][1]:
-                        x_vals[i] = x_vals[i-1]
-
-                if ranges[1] is not None:
-                    if y_vals[i] < ranges[1][0] or y_vals[i] > ranges[1][1]:
-                        y_vals[i] = y_vals[i-1]
-                
-                if ranges[2] is not None:
-                    if color_vals[i] < ranges[2][0] or color_vals[i] > ranges[2][1]:
-                        color_vals[i] = color_vals[i-1]
-
-                if max_steps[0] is not None:
-                    if abs(x_vals[i] - x_vals[i-1]) > max_steps[0]:
-                        x_vals[i] = x_vals[i-1]
-                        
-                if max_steps[1] is not None:
-                    if abs(y_vals[i] - y_vals[i-1]) > max_steps[1]:
-                        y_vals[i] = y_vals[i-1]
-                
-                if max_steps[2] is not None:
-                    if abs(color_vals[i] - color_vals[i-1]) > max_steps[2]:
-                        color_vals[i] = color_vals[i-1]
-
-            except TypeError:
-                print("type error")
-                print(i)
-                x_vals.pop(i)
-                y_vals.pop(i)
-                color_vals.pop(i)
-            i += 1
-
-        plot = figure.add_subplot(111)
-
-        # Plot the line connecting the points
-        if graph_object.connect_lines:
-            plot.plot(x_vals, y_vals, color='black', label='Data Line', linewidth = 0.5)
-        
-        color_scale = 0
-        color_scale_low = None
-        color_scale_high = None
-
-        if graph_object.enforce_color_range:
-            color_scale = (color_dataType.range_high - color_dataType.range_low) * 0.1 / 2
-            color_scale_low = color_dataType.range_low - color_scale
-            color_scale_high = color_dataType.range_high + color_scale
-
-        # Add colored scatter points
-        scatter = plot.scatter(x_vals, y_vals, c=color_vals, cmap='nipy_spectral', vmin = color_scale_low, vmax = color_scale_high, s=20)
-
-        # Add color bar
-        cbar = figure.colorbar(scatter, ax=plot)
-        cbar.set_label(labels[2])
-
-        # Set plot attributes
-        plot.set_title(graph_object.plot_title)
-        plot.set_xlabel(labels[0])
-        plot.set_ylabel(labels[1])
-
-        # Enable grid if specified
-        if graph_object.enable_grid:
-            plot.grid(True)
-
-        # Enforce square aspect ratio if specified
-        if graph_object.enforce_square:
-            max_range = max(
-                max(x_vals) - min(x_vals), 
-                max(y_vals) - min(y_vals), 
-            ) / 1.8
-
-            center_x = (max(x_vals) + min(x_vals)) / 2.0
-            center_y = (max(y_vals) + min(y_vals)) / 2.0
-
-            plot.set_xlim(center_x - max_range, center_x + max_range)
-            plot.set_ylim(center_y - max_range, center_y + max_range)
-            plot.set_box_aspect(1)
-        else: plot.set_box_aspect(None)
-
-    # Function to make a 3D Matplotlib plot with the given options. If the optional parameters are
-    # passed, the data and dataTypes passed will be used, otherwise the stored data is used
-    def make_plot_3D(self, figure, graph_object, use_data):
-        names = graph_object.names
-        if not use_data:
-            x_dataType = self.headers[names[0]]
-            y_dataType = self.headers[names[1]]
-            z_dataType = self.headers[names[2]]
-
-            x_vals = [row[x_dataType.index] for row in self.df]
-            y_vals = [row[y_dataType.index] for row in self.df]
-            z_vals = [row[z_dataType.index] for row in self.df]
-        else:
-            x_dataType = graph_object.x_dataType
-            y_dataType = graph_object.y_dataType
-            z_dataType = graph_object.z_dataType
-
-            x_vals = graph_object.x_data
-            y_vals = graph_object.y_data
-            z_vals = graph_object.z_data
-
-        convs = [x_dataType.conv, y_dataType.conv, z_dataType.conv]
-        ranges = [
-            [x_dataType.range_low, x_dataType.range_high],
-            [y_dataType.range_low, y_dataType.range_high],
-            [z_dataType.range_low, z_dataType.range_high],
-        ]
-        precisions = [x_dataType.precision, y_dataType.precision, z_dataType.precision]
-        max_steps = [x_dataType.max_step, y_dataType.max_step, z_dataType.max_step]
-        start_pos = [x_dataType.start_pos, y_dataType.start_pos, z_dataType.start_pos]
-
-        if x_dataType.unit == "unknown": 
-            x_unit = ""
-        else:
-            x_unit = " (" + x_dataType.unit + ")"
-        if y_dataType.unit == "unknown":
-            y_unit = ""
-        else:
-            y_unit = " (" + y_dataType.unit + ")"
-        if z_dataType.unit == "unknown":
-            z_unit = ""
-        else:
-            z_unit = " (" + z_dataType.unit + ")"
-
-        labels = [names[0] + x_unit, names[1] + y_unit, names[2] + z_unit]
-
-
-        if graph_object.remove_data_till_in_range:
-            while True:
-                x_vals[0] *= convs[0] / precisions[0]
-                y_vals[0] *= convs[1] / precisions[1]
-                z_vals[0] *= convs[2] / precisions[2]
-                if (x_vals[0] < ranges[0][0] or x_vals[0] > ranges[0][1] or
-                    y_vals[0] < ranges[1][0] or y_vals[0] > ranges[1][1] or
-                    z_vals[0] < ranges[2][0] or z_vals[0] > ranges[2][1]):
-                    x_vals.pop(0)
-                    y_vals.pop(0)
-                    z_vals.pop(0)
-                else:
-                    break
-        else:
-            if ranges[0][0] is not None:
-                if (x_vals[0] < ranges[0][0] or x_vals[0] > ranges[0][1]) and start_pos[0] is not None:
-                    x_vals[0] = start_pos[0]
-
-            if ranges[1][0] is not None:
-                if (y_vals[0] < ranges[1][0] or y_vals[0] > ranges[1][1]) and start_pos[1] is not None:
-                    y_vals[0] = start_pos[1]
-
-            if ranges[2][0] is not None:
-                if (z_vals[0] < ranges[2][0] or z_vals[0] > ranges[2][1]) and start_pos[2] is not None:
-                    z_vals[0] = start_pos[2]
-
-        i = 1
-        while i < len(y_vals):
-            try:
-                x_vals[i] *= convs[0] / precisions[0]
-                y_vals[i] *= convs[1] / precisions[1]
-                z_vals[i] *= convs[2] / precisions[2]
-                if ranges[0] is not None:
-                    if x_vals[i] < ranges[0][0] or x_vals[i] > ranges[0][1]:
-                        x_vals[i] = x_vals[i-1]
-
-                if ranges[1] is not None:
-                    if y_vals[i] < ranges[1][0] or y_vals[i] > ranges[1][1]:
-                        y_vals[i] = y_vals[i-1]
-                
-                if ranges[2] is not None:
-                    if z_vals[i] < ranges[2][0] or z_vals[i] > ranges[2][1]:
-                        z_vals[i] = z_vals[i-1]
-
-                if max_steps[0] is not None:
-                    if abs(x_vals[i] - x_vals[i-1]) > max_steps[0]:
-                        x_vals[i] = x_vals[i-1]
-                        
-                if max_steps[1] is not None:
-                    if abs(y_vals[i] - y_vals[i-1]) > max_steps[1]:
-                        y_vals[i] = y_vals[i-1]
-                
-                if max_steps[2] is not None:
-                    if abs(z_vals[i] - z_vals[i-1]) > max_steps[2]:
-                        z_vals[i] = z_vals[i-1]
-
-            except TypeError:
-                print("type error")
-                print(i)
-                x_vals.pop(i)
-                y_vals.pop(i)
-                z_vals.pop(i)
-                i -= 1
-
-            i += 1
-
-        plot = figure.add_subplot(111, projection='3d')
-
-        # Set labels and title
-        plot.set_title(graph_object.plot_title)
-        plot.set_xlabel(labels[0])
-        plot.set_ylabel(labels[1])
-        plot.set_zlabel(labels[2])
-
-        # Scatter plot for the 3D data
-
-        plot.scatter(x_vals, y_vals, z_vals, edgecolor='none', alpha=0.8)
-
-        if graph_object.connect_lines: plot.plot(x_vals, y_vals, z_vals)
-
-        # Enable grid if specified
-        plot.grid(graph_object.enable_grid)
-
-        # Enforce cube aspect ratio if specified (not straightforward in 3D but can scale axes)
-        if graph_object.enforce_square:
-            max_range = max(
-                max(x_vals) - min(x_vals), 
-                max(y_vals) - min(y_vals), 
-                max(z_vals) - min(z_vals)
-            ) / 1.8
-
-            center_x = (max(x_vals) + min(x_vals)) / 2.0
-            center_y = (max(y_vals) + min(y_vals)) / 2.0
-            center_z = (max(z_vals) + min(z_vals)) / 2.0
-
-            plot.set_xlim(center_x - max_range, center_x + max_range)
-            plot.set_ylim(center_y - max_range, center_y + max_range)
-            plot.set_zlim(center_z - max_range, center_z + max_range)
-            plot.set_box_aspect((1,1,1))
-        else: plot.set_box_aspect(None)
-
 # Worker class used to async run functions
 class Worker(QObject):
     finished = pyqtSignal(bool)
@@ -826,25 +919,6 @@ class MplCanvas(FigureCanvasQTAgg):
         fig = Figure(figsize=(width, height), dpi=dpi)
         super().__init__(fig)
 
-# Class which will store all characteristic data of a graph, which can then be pickled into a 
-# bytestream and stored for later graphing
-class GraphObject:
-    def __init__(self, plot_type, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, connect_lines):
-        self.plot_type = plot_type
-        self.x_data = x_data
-        self.x_dataType = x_dataType
-        self.y_data = y_data
-        self.y_dataType = y_dataType
-        self.z_data = z_data
-        self.z_dataType = z_dataType
-        self.names = names
-        self.plot_title = plot_title
-        self.remove_data_till_in_range = remove_data_till_in_range
-        self.enable_grid = enable_grid
-        self.enforce_color_range = enforce_color_range
-        self.enforce_square = enforce_square
-        self.connect_lines = connect_lines
-
 # Main window class which holds the app
 class MizzouDataTool(QMainWindow):
     # Function to initialize all widgets and layouts of the main page
@@ -854,15 +928,14 @@ class MizzouDataTool(QMainWindow):
         self.data_file_path = "."
         self.data_frame = None
 
+        self.graph_style = GraphStyle(False, False, False, "None", "black", 2, 10, 10, "blue", "o", "")
+
         # Set the window title
         self.setWindowTitle("Mizzou Data Tool")
 
         # Set the minimum dimensions of the window
         self.setMinimumWidth(1080)
         self.setMinimumHeight(720)
-
-        # Class variable to control visibility
-        self.data_frame_generated = False
 
         # Create the central widget and layout
         central_widget = QWidget()
@@ -885,11 +958,15 @@ class MizzouDataTool(QMainWindow):
         file_path_label = QLabel("File Path:")
         self.file_path_input = QLineEdit()
         browse_button = QPushButton("Browse Folder")
+        browse_button.clicked.connect(self.browse_folder)
         browse_file_button = QPushButton("Browse File")
+        browse_file_button.clicked.connect(self.browse_file)
         generate_df_button = QPushButton("Generate Data Frame")
         generate_df_button.setObjectName("generate_df_button")
+        generate_df_button.clicked.connect(self.generate_data_frame)
         save_df_button = QPushButton("Save Data Frame")
         save_df_button.setObjectName("save_df_button")
+        save_df_button.clicked.connect(self.save_data_frame)
         file_path_layout.addWidget(file_path_label)
         file_path_layout.addWidget(self.file_path_input)
         file_path_layout.addWidget(browse_button)
@@ -984,14 +1061,15 @@ class MizzouDataTool(QMainWindow):
         self.IFL_Button.clicked.connect(self.up_all_night)
         self.extra_graph_buttons_dropdown = QComboBox()
         self.extra_graph_buttons_dropdown.setObjectName("extra_graph_buttons_dropdown")
-        self.extra_graph_options = {  
+        self.extra_graph_options = {
                                     "Extra Graphing Options:": lambda: None,
-                                    "Create Pop Out Graph": self.full_screen_figure, 
-                                    "Save Graph": self.save_graph, 
-                                    "Open Saved Graph": self.open_saved_graph, 
-                                    "Clear Graph": self.clear_graph,
+                                    "Create Pop Out Graph": self.full_screen_figure,
+                                    "Save Graph": self.save_graph,
+                                    "Open Saved Graph": self.open_saved_graph,
                                     "Save Preset Graph": self.save_preset_graph,
-                                    "Remove Preset Graph": self.remove_preset_graph
+                                    "Remove Preset Graph": self.remove_preset_graph,
+                                    "Modify Graph Style": self.modify_graph_style,
+                                    "Clear Graph": self.clear_graph
                                    }
         self.extra_graph_buttons_dropdown.addItems(self.extra_graph_options.keys())
         self.extra_graph_buttons_dropdown.currentIndexChanged.connect(self.execute_extra_graph_button)
@@ -1058,13 +1136,6 @@ class MizzouDataTool(QMainWindow):
         # Initially disable all elements below file path input
         self.set_elements_enabled(False)
         self.zen_mode_button.setEnabled(True)
-
-        # Connect signals
-        browse_button.clicked.connect(self.browse_folder)
-        browse_file_button.clicked.connect(self.browse_file)
-        generate_df_button.clicked.connect(self.generate_data_frame)
-        save_df_button.clicked.connect(self.save_data_frame)
-
         self.enter_zen_mode()
 
     # Function which sets the title background
@@ -1256,7 +1327,6 @@ class MizzouDataTool(QMainWindow):
         self.findChild(QWidget, "generate_df_button").setStyleSheet("background-color: none")
         self.data_frame = Dataframe()
         self.data_frame.parse_data(self.data_file_path, is_dir)
-        self.data_frame_generated = True
         self.set_elements_enabled(True)
         self.toggle_z_axis(False)
         self.use_z_axis_checkbox.setChecked(False)
@@ -1443,7 +1513,7 @@ class MizzouDataTool(QMainWindow):
         enforce_square = central_widget.findChild(QWidget, "enforce_square_graph_checkbox").isChecked()
         remove_data_till_in_range = central_widget.findChild(QWidget, "delete_till_in_range_checkbox").isChecked()
         use_custom_title = self.custom_plot_title_checkbox.isChecked()
-        connect_lines = central_widget.findChild(QWidget, "line_between_points_checkbox").isChecked()
+        connect_points = central_widget.findChild(QWidget, "line_between_points_checkbox").isChecked()
         if use_custom_title:
             plot_title = central_widget.findChild(QWidget, "custom_plot_title_line_edit").text()
         else:
@@ -1458,6 +1528,8 @@ class MizzouDataTool(QMainWindow):
         elif z_color: plot_type = 1
         else: plot_type = 2
 
+        graph_style = self.graph_style
+
         x_dataType = self.data_frame.headers[x_selection]
         x_data = [row[x_dataType.index] for row in self.data_frame.df]
         y_dataType = self.data_frame.headers[y_selection]
@@ -1465,20 +1537,21 @@ class MizzouDataTool(QMainWindow):
         z_dataType = self.data_frame.headers[z_selection]
         z_data = [row[z_dataType.index] for row in self.data_frame.df]
 
-        graph_object = GraphObject(plot_type, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, [x_selection, y_selection, z_selection], plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, connect_lines)
+        graph_object = GraphObject(plot_type, graph_style, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, [x_selection, y_selection, z_selection], plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, connect_points)
 
         figure = self.canvas.figure
         # try:
         if not return_params:
             if plot_type == 0:
-                self.data_frame.make_plot_2D(figure, graph_object, False)
+                make_plot_2D(figure, graph_object)
             elif plot_type == 1:
-                self.data_frame.make_plot_3D_color(figure, graph_object, False)
+                make_plot_3D_color(figure, graph_object)
             else:
-                self.data_frame.make_plot_3D(figure, graph_object, False)
+                make_plot_3D(figure, graph_object)
             self.canvas.draw()
         else:
             return graph_object
+        print("FIX ME PLEASE")
         # except Exception as e:
         #     err_type = type(e).__name__
         #     if err_type == "TypeError":
@@ -1493,11 +1566,11 @@ class MizzouDataTool(QMainWindow):
     # Function to pop out a full screen window with the currently selected graph options. This
     # window will behave as a fully independant graph, and can be translated and rescaled
     def full_screen_figure(self):
-            w = BreakoutWindow()
-            graph_object = self.generate_graph(True)
-            w.fullscreen_graph(graph_object)
-            w.show_new_window()
-            self.array_window.append(w)
+        w = BreakoutWindow()
+        graph_object = self.generate_graph(True)
+        w.fullscreen_graph(graph_object)
+        w.show_new_window()
+        self.array_window.append(w)
 
     # Function to save a graph as a .MRGO bytestream. Uses docs.python.org/3/library/pickle.html
     def save_graph(self):
@@ -1628,6 +1701,11 @@ class MizzouDataTool(QMainWindow):
             self.preset_graphs = self.get_preset_graphs()
             self.preset_graphing_dropdown.clear()
             self.preset_graphing_dropdown.addItems(self.preset_graphs)
+
+    def modify_graph_style(self):
+        modify_graph_style_dialog = ModifyGraphStyle(self.graph_style, self)
+        if modify_graph_style_dialog.exec() == QDialog.DialogCode.Accepted:
+            self.graph_style = modify_graph_style_dialog.get_graph_style()
 
     # Function which swaps the index associated with two headers, for use when data is accientally
     # labeled incorrectly. We have found this to be an issue with IMU data specifically due to
@@ -1827,9 +1905,9 @@ class BreakoutWindow(QMainWindow):
         self.canvas.figure.clear()
         figure = self.canvas.figure
 
-        if graph_object.plot_type == 0: self.data_frame.make_plot_2D(figure, graph_object, True)
-        elif graph_object.plot_type == 1: self.data_frame.make_plot_3D_color(figure, graph_object, True)
-        else: self.data_frame.make_plot_3D(figure, graph_object, True)
+        if graph_object.plot_type == 0: make_plot_2D(figure, graph_object)
+        elif graph_object.plot_type == 1: make_plot_3D_color(figure, graph_object)
+        else: make_plot_3D(figure, graph_object)
 
         self.canvas.draw()
 
@@ -1892,7 +1970,155 @@ class RemovePresetPopoutWindow(QDialog):
         """Return the entered text when dialog is accepted."""
         return self.preset_name_dropdown.currentText()
 
+class ModifyGraphStyle(QDialog):
+    def __init__(self, graph_style: GraphStyle, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Modify Graph Style")
+        self.setGeometry(parent.x() + parent.width()//2 - 150, parent.y() + parent.height()//2 - 50, 300, 100)
+
+        # Layout and widgets
+        self.layout = QVBoxLayout()
+
+        self.show_min_checkbox = QCheckBox("Show Min")
+        self.show_min_checkbox.setChecked(graph_style.show_min)
+
+        self.show_max_checkbox = QCheckBox("Show Max")
+        self.show_max_checkbox.setChecked(graph_style.show_max)
+
+        self.show_stddev_checkbox = QCheckBox("Show Standard Deviation")
+        self.show_stddev_checkbox.setChecked(graph_style.show_stddev)
+
+        self.trend_line_options = ["None", "Linear", "Polynomial", "Moving Average", "Logarithmic"]
+        self.trend_line_label = QLabel("Trend Line Type:")
+        self.trend_line_dropdown = QComboBox()
+        self.trend_line_dropdown.addItems(self.trend_line_options)
+        self.trend_line_dropdown.setCurrentText(graph_style.trend_line_type)
+        self.trend_line_dropdown.currentIndexChanged.connect(self.updateTrendOptions)
+
+        self.trend_line_color_options = ["black", "grey", "white", "red", "orange", "yellow", "green", "blue", "indigo", "violet"]
+        self.trend_line_color_label = QLabel("Trend Line Color:")
+        self.trend_line_color_dropdown = QComboBox()
+        self.trend_line_color_dropdown.addItems(self.trend_line_color_options)
+        self.trend_line_color_dropdown.setCurrentText(graph_style.trend_line_color)
+
+        self.polynomial_order_label = QLabel("Polynomial Order:")
+        self.polynomial_order_input = QLineEdit()
+        self.polynomial_order_input.setText(str(graph_style.polynomial_order))
+
+        self.moving_average_label = QLabel("Points to Average Over:")
+        self.moving_average_input = QLineEdit()
+        self.moving_average_input.setText(str(graph_style.moving_average_length))
+
+        self.marker_size_label = QLabel("Marker Size:")
+        self.marker_size_input = QLineEdit()
+        self.marker_size_input.setText(str(graph_style.marker_size))
+
+        self.marker_color_options = ["black", "grey", "white", "red", "orange", "yellow", "green", "blue", "indigo", "violet"]
+        self.marker_color_label = QLabel("Marker Color:")
+        self.marker_color_dropdown = QComboBox()
+        self.marker_color_dropdown.addItems(self.marker_color_options)
+        self.marker_color_dropdown.setCurrentText(graph_style.marker_color)
+
+        self.line_marker_options = {
+                                    "point": ".",
+                                    "circle": "o", 
+                                    "triangle": "^", 
+                                    "square": "s", 
+                                    "star": "*", 
+                                    "X": "x", 
+                                    "diamond": "D"
+                                    }
+        self.line_marker_label = QLabel("Line Marker Style:")
+        self.line_marker_dropdown = QComboBox()
+        self.line_marker_dropdown.addItems(self.line_marker_options.keys())
+        self.line_marker_dropdown.setCurrentIndex(list(self.line_marker_options.values()).index(graph_style.marker_style))
+
+        self.line_name_label = QLabel("Line Name:")
+        self.line_name_input = QLineEdit()
+        self.line_name_input.setText(graph_style.line_name)
+        
+        self.confirm_button = QPushButton("Confirm Settings")
+
+        # Add widgets to layout
+        self.layout.addWidget(self.show_min_checkbox)
+        self.layout.addWidget(self.show_max_checkbox)
+        self.layout.addWidget(self.show_stddev_checkbox)
+        self.layout.addWidget(self.trend_line_label)
+        self.layout.addWidget(self.trend_line_dropdown)
+        self.layout.addWidget(self.trend_line_color_label)
+        self.layout.addWidget(self.trend_line_color_dropdown)
+        self.layout.addWidget(self.polynomial_order_label)
+        self.layout.addWidget(self.polynomial_order_input)
+        self.layout.addWidget(self.moving_average_label)
+        self.layout.addWidget(self.moving_average_input)
+        self.layout.addWidget(self.marker_size_label)
+        self.layout.addWidget(self.marker_size_input)
+        self.layout.addWidget(self.marker_color_label)
+        self.layout.addWidget(self.marker_color_dropdown)
+        self.layout.addWidget(self.line_marker_label)
+        self.layout.addWidget(self.line_marker_dropdown)
+        self.layout.addWidget(self.line_name_label)
+        self.layout.addWidget(self.line_name_input)
+        self.layout.addWidget(self.confirm_button)
+        self.setLayout(self.layout)
+
+        self.polynomial_order_label.setVisible(False)
+        self.polynomial_order_input.setVisible(False)
+        self.moving_average_label.setVisible(False)
+        self.moving_average_input.setVisible(False)
+
+        self.updateTrendOptions()
+
+        # Connect button signal
+        self.confirm_button.clicked.connect(self.accept)
+
+    def updateTrendOptions(self):
+        if self.trend_line_dropdown.currentText() == "Polynomial":
+            self.polynomial_order_label.setVisible(True)
+            self.polynomial_order_input.setVisible(True)
+            self.moving_average_label.setVisible(False)
+            self.moving_average_input.setVisible(False)
+        elif self.trend_line_dropdown.currentText() == "Moving Average":
+            self.polynomial_order_label.setVisible(False)
+            self.polynomial_order_input.setVisible(False)
+            self.moving_average_label.setVisible(True)
+            self.moving_average_input.setVisible(True)
+        else:
+            self.polynomial_order_label.setVisible(False)
+            self.polynomial_order_input.setVisible(False)
+            self.moving_average_label.setVisible(False)
+            self.moving_average_input.setVisible(False)
+
+    def get_graph_style(self):
+        show_min = self.show_min_checkbox.isChecked()
+        show_max = self.show_max_checkbox.isChecked()
+        show_stddev = self.show_stddev_checkbox.isChecked()
+        trend_line_type = self.trend_line_dropdown.currentText()
+        trend_line_color = self.trend_line_color_dropdown.currentText()
+        polynomial_order = self.polynomial_order_input.text()
+        try:
+            polynomial_order = int(polynomial_order)
+            polynomial_order = min(100, max(1, polynomial_order))
+        except:
+            polynomial_order = 2
+        moving_average_length = self.moving_average_input.text()
+        try:
+            moving_average_length = int(moving_average_length)
+        except:
+            moving_average_length = 10
+        marker_size = self.marker_size_input.text()
+        try:
+            marker_size = float(marker_size)
+        except:
+            marker_size = 10
+        marker_color = self.marker_color_dropdown.currentText()
+        marker_style = self.line_marker_options[self.line_marker_dropdown.currentText()]
+        line_name = self.line_name_input.text()
+        graph_style = GraphStyle(show_min, show_max, show_stddev, trend_line_type, trend_line_color, polynomial_order, moving_average_length, marker_size, marker_color, marker_style, line_name)
+        return graph_style
+
 # Main code for the app. Creates a new QApp, a new window to show, and starts the app
+os.environ["QT_API"] = "PyQt6"
 app = QApplication(sys.argv)
 window = MizzouDataTool()
 window.showMaximized()
