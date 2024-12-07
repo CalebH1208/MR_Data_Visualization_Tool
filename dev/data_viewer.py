@@ -42,7 +42,7 @@ class GraphStyle:
 # Class which will store all characteristic data of a graph, which can then be pickled into a 
 # bytestream and stored for later graphing
 class GraphObject:
-    def __init__(self, plot_type, graph_style: GraphStyle, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, names, plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, connect_points):
+    def __init__(self, plot_type, graph_style: GraphStyle, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, names, plot_title, remove_out_of_range_data, enable_grid, enforce_color_range, enforce_square, connect_points):
         self.plot_type = plot_type
         self.graph_style = graph_style
         self.x_data = x_data
@@ -53,7 +53,7 @@ class GraphObject:
         self.z_dataType = z_dataType
         self.names = names
         self.plot_title = plot_title
-        self.remove_data_till_in_range = remove_data_till_in_range
+        self.remove_out_of_range_data = remove_out_of_range_data
         self.enable_grid = enable_grid
         self.enforce_color_range = enforce_color_range
         self.enforce_square = enforce_square
@@ -70,18 +70,21 @@ def make_plot_2D(figure, graph_object: GraphObject):
     x_dataType = graph_object.x_dataType
     y_dataType = graph_object.y_dataType
 
-    x_vals = graph_object.x_data
-    y_vals = graph_object.y_data
+    x_vals = graph_object.x_data.copy()
+    y_vals = graph_object.y_data.copy()
 
-    if graph_object.remove_data_till_in_range:
-        while True:
-            x_vals[0] *= x_dataType.conv / x_dataType.precision
-            y_vals[0] *= y_dataType.conv / y_dataType.precision
-            if x_vals[0] < x_dataType.range_low or x_vals[0] > x_dataType.range_high or y_vals[0] < y_dataType.range_low or y_vals[0] > y_dataType.range_high:
-                x_vals.pop(0)
-                y_vals.pop(0)
+    if graph_object.remove_out_of_range_data:
+        i = 0
+        while i < len(x_vals):
+            x_val = x_vals[i] * (x_dataType.conv / x_dataType.precision)
+            y_val = y_vals[i] * (y_dataType.conv / y_dataType.precision)
+            if x_val < x_dataType.range_low or x_val > x_dataType.range_high or y_val < y_dataType.range_low or y_val > y_dataType.range_high:
+                del x_vals[i]
+                del y_vals[i]
             else:
-                break
+                i += 1
+        x_vals[0] *= x_dataType.conv / x_dataType.precision
+        y_vals[0] *= y_dataType.conv / y_dataType.precision
     else:
         if x_dataType.range_low is not None:
             if (x_vals[0] < x_dataType.range_low or x_vals[0] > x_dataType.range_high) and x_dataType.start_pos is not None:
@@ -191,9 +194,9 @@ def make_plot_3D_color(figure, graph_object: GraphObject):
     y_dataType = graph_object.y_dataType
     color_dataType = graph_object.z_dataType
 
-    x_vals = graph_object.x_data
-    y_vals = graph_object.y_data
-    color_vals = graph_object.z_data
+    x_vals = graph_object.x_data.copy()
+    y_vals = graph_object.y_data.copy()
+    color_vals = graph_object.z_data.copy()
 
     ranges = [
         [x_dataType.range_low, x_dataType.range_high],
@@ -220,19 +223,20 @@ def make_plot_3D_color(figure, graph_object: GraphObject):
 
     labels = [names[0] + x_unit, names[1] + y_unit, names[2] + color_unit]
 
-    if graph_object.remove_data_till_in_range:
-        while True:
-            x_vals[0] *= convs[0] / precisions[0]
-            y_vals[0] *= convs[1] / precisions[1]
-            color_vals[0] *= convs[2] / precisions[2]
-            if (x_vals[0] < ranges[0][0] or x_vals[0] > ranges[0][1] or
-                y_vals[0] < ranges[1][0] or y_vals[0] > ranges[1][1] or
-                color_vals[0] < ranges[2][0] or color_vals[0] > ranges[2][1]):
-                x_vals.pop(0)
-                y_vals.pop(0)
-                color_vals.pop(0)
+    if graph_object.remove_out_of_range_data:
+        i = 0
+        while i < len(x_vals):
+            x_val = x_vals[i] * (x_dataType.conv / x_dataType.precision)
+            y_val = y_vals[i] * (y_dataType.conv / y_dataType.precision)
+            if x_val < x_dataType.range_low or x_val > x_dataType.range_high or y_val < y_dataType.range_low or y_val > y_dataType.range_high:
+                del x_vals[i]
+                del y_vals[i]
+                del color_vals[i]
             else:
-                break
+                i += 1
+        x_vals[0] *= x_dataType.conv / x_dataType.precision
+        y_vals[0] *= y_dataType.conv / y_dataType.precision
+        color_vals[0] *= color_dataType.conv / color_dataType.precision
     else:
         if ranges[0][0] is not None:
             if (x_vals[0] < ranges[0][0] or x_vals[0] > ranges[0][1]) and starting_pos[0] is not None:
@@ -369,9 +373,9 @@ def make_plot_3D(figure, graph_object: GraphObject):
     y_dataType = graph_object.y_dataType
     z_dataType = graph_object.z_dataType
 
-    x_vals = graph_object.x_data
-    y_vals = graph_object.y_data
-    z_vals = graph_object.z_data
+    x_vals = graph_object.x_data.copy()
+    y_vals = graph_object.y_data.copy()
+    z_vals = graph_object.z_data.copy()
 
     convs = [x_dataType.conv, y_dataType.conv, z_dataType.conv]
     ranges = [
@@ -399,19 +403,23 @@ def make_plot_3D(figure, graph_object: GraphObject):
     labels = [names[0] + x_unit, names[1] + y_unit, names[2] + z_unit]
 
 
-    if graph_object.remove_data_till_in_range:
-        while True:
-            x_vals[0] *= convs[0] / precisions[0]
-            y_vals[0] *= convs[1] / precisions[1]
-            z_vals[0] *= convs[2] / precisions[2]
-            if (x_vals[0] < ranges[0][0] or x_vals[0] > ranges[0][1] or
-                y_vals[0] < ranges[1][0] or y_vals[0] > ranges[1][1] or
-                z_vals[0] < ranges[2][0] or z_vals[0] > ranges[2][1]):
-                x_vals.pop(0)
-                y_vals.pop(0)
-                z_vals.pop(0)
+    if graph_object.remove_out_of_range_data:
+        i = 0
+        while i < len(x_vals):
+            x_val = x_vals[i] * convs[0] / precisions[0]
+            y_val = y_vals[i] * convs[1] / precisions[1]
+            z_val = z_vals[i] * convs[2] / precisions[2]
+            if (x_val < ranges[0][0] or x_val > ranges[0][1] or
+                y_val < ranges[1][0] or y_val > ranges[1][1] or
+                z_val < ranges[2][0] or z_val > ranges[2][1]):
+                x_vals.pop(i)
+                y_vals.pop(i)
+                z_vals.pop(i)
             else:
-                break
+                i += 1
+        x_vals[0] *= x_dataType.conv / x_dataType.precision
+        y_vals[0] *= y_dataType.conv / y_dataType.precision
+        z_vals[0] *= z_dataType.conv / z_dataType.precision
     else:
         if ranges[0][0] is not None:
             if (x_vals[0] < ranges[0][0] or x_vals[0] > ranges[0][1]) and start_pos[0] is not None:
@@ -1018,10 +1026,10 @@ class MizzouDataTool(QMainWindow):
         self.extra_options_layout.addWidget(self.enforce_square_graph_checkbox, 1, 1)
 
         # Delete Till in Range
-        self.delete_till_in_range_checkbox = QCheckBox("Remove Data Until in Range")
-        self.delete_till_in_range_checkbox.setChecked(True)
-        self.delete_till_in_range_checkbox.setObjectName("delete_till_in_range_checkbox")
-        self.extra_options_layout.addWidget(self.delete_till_in_range_checkbox, 0, 2)
+        self.delete_out_of_range_checkbox = QCheckBox("Remove Out of Range Data")
+        self.delete_out_of_range_checkbox.setChecked(True)
+        self.delete_out_of_range_checkbox.setObjectName("delete_out_of_range_checkbox")
+        self.extra_options_layout.addWidget(self.delete_out_of_range_checkbox, 0, 2)
 
         # Draw Line Between Points on Graph
         self.line_between_points_checkbox = QCheckBox("Line Between Points")
@@ -1511,7 +1519,7 @@ class MizzouDataTool(QMainWindow):
         enable_grid = central_widget.findChild(QWidget, "enable_grid_lines_checkbox").isChecked()
         enforce_color_range = central_widget.findChild(QWidget, "enforce_color_range_checkbox").isChecked()
         enforce_square = central_widget.findChild(QWidget, "enforce_square_graph_checkbox").isChecked()
-        remove_data_till_in_range = central_widget.findChild(QWidget, "delete_till_in_range_checkbox").isChecked()
+        remove_out_of_range_data = central_widget.findChild(QWidget, "delete_out_of_range_checkbox").isChecked()
         use_custom_title = self.custom_plot_title_checkbox.isChecked()
         connect_points = central_widget.findChild(QWidget, "line_between_points_checkbox").isChecked()
         if use_custom_title:
@@ -1537,31 +1545,30 @@ class MizzouDataTool(QMainWindow):
         z_dataType = self.data_frame.headers[z_selection]
         z_data = [row[z_dataType.index] for row in self.data_frame.df]
 
-        graph_object = GraphObject(plot_type, graph_style, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, [x_selection, y_selection, z_selection], plot_title, remove_data_till_in_range, enable_grid, enforce_color_range, enforce_square, connect_points)
+        graph_object = GraphObject(plot_type, graph_style, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, [x_selection, y_selection, z_selection], plot_title, remove_out_of_range_data, enable_grid, enforce_color_range, enforce_square, connect_points)
 
         figure = self.canvas.figure
-        # try:
-        if not return_params:
-            if plot_type == 0:
-                make_plot_2D(figure, graph_object)
-            elif plot_type == 1:
-                make_plot_3D_color(figure, graph_object)
+        try:
+            if not return_params:
+                if plot_type == 0:
+                    make_plot_2D(figure, graph_object)
+                elif plot_type == 1:
+                    make_plot_3D_color(figure, graph_object)
+                else:
+                    make_plot_3D(figure, graph_object)
+                self.canvas.draw()
             else:
-                make_plot_3D(figure, graph_object)
-            self.canvas.draw()
-        else:
-            return graph_object
-        print("FIX ME PLEASE")
-        # except Exception as e:
-        #     err_type = type(e).__name__
-        #     if err_type == "TypeError":
-        #         self.log_message("Error: Cannot create graph from given data type")
-        #         if self.zen:
-        #             self.show_error_dialog("Cannot create graph from given data type")
-        #     else:
-        #         self.log_message("Error: Encountered an unexpected error when attempting to graph.")
-        #         if self.zen:
-        #                 self.show_error_dialog("Encountered an unexpected error when attempting to graph.")
+                return graph_object
+        except Exception as e:
+            err_type = type(e).__name__
+            if err_type == "TypeError":
+                self.log_message("Error: Cannot create graph from given data type")
+                if self.zen:
+                    self.show_error_dialog("Cannot create graph from given data type")
+            else:
+                self.log_message("Error: Encountered an unexpected error when attempting to graph.")
+                if self.zen:
+                        self.show_error_dialog("Encountered an unexpected error when attempting to graph.")
 
     # Function to pop out a full screen window with the currently selected graph options. This
     # window will behave as a fully independant graph, and can be translated and rescaled
@@ -1778,7 +1785,7 @@ class MizzouDataTool(QMainWindow):
 
             self.enable_grid_lines_checkbox.hide()
             self.enforce_square_graph_checkbox.hide()
-            self.delete_till_in_range_checkbox.hide()
+            self.delete_out_of_range_checkbox.hide()
             self.line_between_points_checkbox.hide()
             self.enforce_color_range_checkbox.hide()
             self.custom_plot_title_checkbox.hide()
@@ -1844,7 +1851,7 @@ class MizzouDataTool(QMainWindow):
 
             self.enable_grid_lines_checkbox.show()
             self.enforce_square_graph_checkbox.show()
-            self.delete_till_in_range_checkbox.show()
+            self.delete_out_of_range_checkbox.show()
             self.line_between_points_checkbox.show()
             self.enforce_color_range_checkbox.show()
             self.custom_plot_title_checkbox.show()
