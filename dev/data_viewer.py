@@ -26,10 +26,19 @@ import sys
 import pickle
 
 class GraphStyle:
-    def __init__(self, show_min, show_max, show_stddev, trend_line_type, trend_line_color, polynomial_order, moving_average_length, marker_size, marker_color, marker_style, line_name):
+    def __init__(self, show_min, show_max, show_stddev, show_grid_lines, enforce_square, 
+                 remove_out_of_range_data, custom_plot_title, connect_points, enforce_color_range, trend_line_type, 
+                 trend_line_color, polynomial_order, moving_average_length, marker_size, 
+                 marker_color, marker_style, line_name):
         self.show_min = show_min
         self.show_max = show_max
         self.show_stddev = show_stddev
+        self.show_grid_lines = show_grid_lines
+        self.enforce_square = enforce_square
+        self.remove_out_of_range_data = remove_out_of_range_data
+        self.custom_plot_title = custom_plot_title
+        self.connect_points = connect_points
+        self.enforce_color_range = enforce_color_range
         self.trend_line_type = trend_line_type
         self.trend_line_color = trend_line_color
         self.polynomial_order = polynomial_order
@@ -42,7 +51,7 @@ class GraphStyle:
 # Class which will store all characteristic data of a graph, which can then be pickled into a 
 # bytestream and stored for later graphing
 class GraphObject:
-    def __init__(self, plot_type, graph_style: GraphStyle, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, names, plot_title, remove_out_of_range_data, enable_grid, enforce_color_range, enforce_square, connect_points):
+    def __init__(self, plot_type, graph_style: GraphStyle, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, names, plot_title):
         self.plot_type = plot_type
         self.graph_style = graph_style
         self.x_data = x_data
@@ -53,11 +62,6 @@ class GraphObject:
         self.z_dataType = z_dataType
         self.names = names
         self.plot_title = plot_title
-        self.remove_out_of_range_data = remove_out_of_range_data
-        self.enable_grid = enable_grid
-        self.enforce_color_range = enforce_color_range
-        self.enforce_square = enforce_square
-        self.connect_points = connect_points
 
 def movingaverage(interval, window_size):
     window= np.ones(int(window_size))/float(window_size)
@@ -73,7 +77,7 @@ def make_plot_2D(figure, graph_object: GraphObject):
     x_vals = graph_object.x_data.copy()
     y_vals = graph_object.y_data.copy()
 
-    if graph_object.remove_out_of_range_data:
+    if graph_object.graph_style.remove_out_of_range_data:
         i = 0
         while i < len(x_vals):
             x_val = x_vals[i] * (x_dataType.conv / x_dataType.precision)
@@ -131,10 +135,11 @@ def make_plot_2D(figure, graph_object: GraphObject):
 
     plot = figure.add_subplot(111)
 
-    if graph_object.connect_points:
-        plot.plot(x_vals, y_vals, label=None)
-    else:
-        plot.scatter(x_vals, y_vals, marker=graph_object.graph_style.marker_style, label=graph_object.graph_style.line_name, s=graph_object.graph_style.marker_size, c=graph_object.graph_style.marker_color)
+    # Plot the line connecting the points
+    if graph_object.graph_style.connect_points:
+        plot.plot(x_vals, y_vals, color=graph_object.graph_style.marker_color, label=None, linewidth = 0.5)
+
+    plot.scatter(x_vals, y_vals, marker=graph_object.graph_style.marker_style, label=graph_object.graph_style.line_name, s=graph_object.graph_style.marker_size, c=graph_object.graph_style.marker_color)
 
     if graph_object.graph_style.trend_line_type == "Linear":
         coefficients = np.polyfit(x_vals, y_vals, 1)
@@ -160,7 +165,7 @@ def make_plot_2D(figure, graph_object: GraphObject):
     plot.set_xlabel(graph_object.names[0] + x_unit)
     plot.set_ylabel(graph_object.names[1] + y_unit)
     plot.set_title(graph_object.plot_title)
-    plot.grid(graph_object.enable_grid)
+    plot.grid(graph_object.graph_style.show_grid_lines)
 
     plot_annotation = ""
     if graph_object.graph_style.show_min:
@@ -173,7 +178,7 @@ def make_plot_2D(figure, graph_object: GraphObject):
         annotation = plot.annotate(text=plot_annotation, xy=(x_vals[0],y_vals[0]), bbox=dict(facecolor="white"), label = None)
         annotation.draggable()
 
-    if graph_object.enforce_square:
+    if graph_object.graph_style.enforce_square:
         max_range = max(
             max(x_vals) - min(x_vals), 
             max(y_vals) - min(y_vals), 
@@ -223,7 +228,7 @@ def make_plot_3D_color(figure, graph_object: GraphObject):
 
     labels = [names[0] + x_unit, names[1] + y_unit, names[2] + color_unit]
 
-    if graph_object.remove_out_of_range_data:
+    if graph_object.graph_style.remove_out_of_range_data:
         i = 0
         while i < len(x_vals):
             x_val = x_vals[i] * (x_dataType.conv / x_dataType.precision)
@@ -275,7 +280,7 @@ def make_plot_3D_color(figure, graph_object: GraphObject):
             if max_steps[1] is not None:
                 if abs(y_vals[i] - y_vals[i-1]) > max_steps[1]:
                     y_vals[i] = y_vals[i-1]
-            
+
             if max_steps[2] is not None:
                 if abs(color_vals[i] - color_vals[i-1]) > max_steps[2]:
                     color_vals[i] = color_vals[i-1]
@@ -290,21 +295,21 @@ def make_plot_3D_color(figure, graph_object: GraphObject):
 
     plot = figure.add_subplot(111)
 
-    # Plot the line connecting the points
-    if graph_object.connect_points:
-        plot.plot(x_vals, y_vals, color='black', label=None, linewidth = 0.5)
-    
     color_scale = 0
     color_scale_low = None
     color_scale_high = None
 
-    if graph_object.enforce_color_range:
+    if graph_object.graph_style.enforce_color_range:
         color_scale = (color_dataType.range_high - color_dataType.range_low) * 0.1 / 2
         color_scale_low = color_dataType.range_low - color_scale
         color_scale_high = color_dataType.range_high + color_scale
 
     # Add colored scatter points
     scatter = plot.scatter(x_vals, y_vals, c=color_vals, cmap='nipy_spectral', vmin = color_scale_low, vmax = color_scale_high, marker=graph_object.graph_style.marker_style, label=graph_object.graph_style.line_name, s=graph_object.graph_style.marker_size)
+
+    # Plot the line connecting the points
+    if graph_object.graph_style.connect_points:
+        plot.plot(x_vals, y_vals, color = "black", label=None, linewidth = 0.5)
 
     # Add color bar
     cbar = figure.colorbar(scatter, ax=plot)
@@ -337,7 +342,7 @@ def make_plot_3D_color(figure, graph_object: GraphObject):
     plot.set_ylabel(labels[1])
 
     # Enable grid if specified
-    if graph_object.enable_grid:
+    if graph_object.graph_style.show_grid_lines:
         plot.grid(True)
 
     plot_annotation = ""
@@ -352,7 +357,7 @@ def make_plot_3D_color(figure, graph_object: GraphObject):
         annotation.draggable()
 
     # Enforce square aspect ratio if specified
-    if graph_object.enforce_square:
+    if graph_object.graph_style.enforce_square:
         max_range = max(
             max(x_vals) - min(x_vals), 
             max(y_vals) - min(y_vals), 
@@ -403,7 +408,7 @@ def make_plot_3D(figure, graph_object: GraphObject):
     labels = [names[0] + x_unit, names[1] + y_unit, names[2] + z_unit]
 
 
-    if graph_object.remove_out_of_range_data:
+    if graph_object.graph_style.remove_out_of_range_data:
         i = 0
         while i < len(x_vals):
             x_val = x_vals[i] * convs[0] / precisions[0]
@@ -485,10 +490,10 @@ def make_plot_3D(figure, graph_object: GraphObject):
 
     plot.scatter(x_vals, y_vals, z_vals, edgecolor='none', alpha=0.8, marker=graph_object.graph_style.marker_style, label=graph_object.graph_style.line_name, s=graph_object.graph_style.marker_size, c=graph_object.graph_style.marker_color)
 
-    if graph_object.connect_points: plot.plot(x_vals, y_vals, z_vals)
+    if graph_object.graph_style.connect_points: plot.plot(x_vals, y_vals, z_vals, color=graph_object.graph_style.marker_color)
 
     # Enable grid if specified
-    plot.grid(graph_object.enable_grid)
+    plot.grid(graph_object.graph_style.show_grid_lines)
 
     plot_annotation = ""
     if graph_object.graph_style.show_min:
@@ -502,7 +507,7 @@ def make_plot_3D(figure, graph_object: GraphObject):
         annotation.draggable()
 
     # Enforce cube aspect ratio if specified (not straightforward in 3D but can scale axes)
-    if graph_object.enforce_square:
+    if graph_object.graph_style.enforce_square:
         max_range = max(
             max(x_vals) - min(x_vals), 
             max(y_vals) - min(y_vals), 
@@ -936,7 +941,7 @@ class MizzouDataTool(QMainWindow):
         self.data_file_path = "."
         self.data_frame = None
 
-        self.graph_style = GraphStyle(False, False, False, "None", "black", 2, 10, 10, "blue", "o", "")
+        self.graph_style = GraphStyle(False, False, False, True, False, False, "", False, False, "None", "black", 2, 10, 10, "blue", "o", "")
 
         # Set the window title
         self.setWindowTitle("Mizzou Data Tool")
@@ -1006,58 +1011,22 @@ class MizzouDataTool(QMainWindow):
         main_layout.addLayout(self.axis_section_layout)
 
         # Extra Options Section
-        self.extra_options_layout = QGridLayout()
+        self.extra_options_layout = QHBoxLayout()
 
         # Z-Axis Checkboxes
         self.use_z_axis_checkbox = QCheckBox("Use Z-Axis")
         self.use_z_axis_checkbox.stateChanged.connect(self.toggle_z_axis)
         self.toggle_z_axis(False)
         self.apply_z_as_color_checkbox = QCheckBox("Apply Z-Axis as Color")
-        self.extra_options_layout.addWidget(self.use_z_axis_checkbox, 0, 0)
-        self.extra_options_layout.addWidget(self.apply_z_as_color_checkbox, 1, 0)
-
-        # Enable Grid Lines and Enforce Square Chech Boxes
-        self.enable_grid_lines_checkbox = QCheckBox("Enable Grid Lines")
-        self.enable_grid_lines_checkbox.setChecked(True)
-        self.enable_grid_lines_checkbox.setObjectName("enable_grid_lines_checkbox")
-        self.enforce_square_graph_checkbox = QCheckBox("Enforce Square Graph")
-        self.enforce_square_graph_checkbox.setObjectName("enforce_square_graph_checkbox")
-        self.extra_options_layout.addWidget(self.enable_grid_lines_checkbox, 0, 1)
-        self.extra_options_layout.addWidget(self.enforce_square_graph_checkbox, 1, 1)
-
-        # Delete Till in Range
-        self.delete_out_of_range_checkbox = QCheckBox("Remove Out of Range Data")
-        self.delete_out_of_range_checkbox.setChecked(True)
-        self.delete_out_of_range_checkbox.setObjectName("delete_out_of_range_checkbox")
-        self.extra_options_layout.addWidget(self.delete_out_of_range_checkbox, 0, 2)
-
-        # Draw Line Between Points on Graph
-        self.line_between_points_checkbox = QCheckBox("Line Between Points")
-        self.line_between_points_checkbox.setChecked(False)
-        self.line_between_points_checkbox.setObjectName("line_between_points_checkbox")
-        self.extra_options_layout.addWidget(self.line_between_points_checkbox, 0, 3)
-
-        # Make Graph Edges Equal to Range
-        self.enforce_color_range_checkbox = QCheckBox("Enforce Color Range")
-        self.enforce_color_range_checkbox.setChecked(False)
-        self.enforce_color_range_checkbox.setObjectName("enforce_color_range_checkbox")
-        self.extra_options_layout.addWidget(self.enforce_color_range_checkbox, 0, 4)
-
-        # Use Custom Plot Title
-        self.custom_plot_title_checkbox = QCheckBox("Use Custom Plot Title")
-        self.custom_plot_title_line_edit = QLineEdit()
-        self.custom_plot_title_line_edit.setPlaceholderText("Custom Plot Title")
-        self.custom_plot_title_line_edit.setObjectName("custom_plot_title_line_edit")
-        self.custom_plot_title_line_edit.setMaximumWidth(self.width()//4)
-        self.extra_options_layout.addWidget(self.custom_plot_title_checkbox, 1, 2)
-        self.extra_options_layout.addWidget(self.custom_plot_title_line_edit, 1, 3)
+        self.extra_options_layout.addWidget(self.use_z_axis_checkbox)
+        self.extra_options_layout.addWidget(self.apply_z_as_color_checkbox)
 
         self.preset_graphing_dropdown = QComboBox()
-        self.preset_graphing_dropdown.setObjectName("extra_graph_buttons_dropdown")
+        self.preset_graphing_dropdown.setObjectName("preset_graphing_dropdown")
         self.preset_graphs = self.get_preset_graphs()
         self.preset_graphing_dropdown.addItems(self.preset_graphs)
         self.preset_graphing_dropdown.currentIndexChanged.connect(self.execute_preset_graph)
-        self.extra_options_layout.addWidget(self.preset_graphing_dropdown, 1, 4)
+        self.extra_options_layout.addWidget(self.preset_graphing_dropdown)
 
         main_layout.addLayout(self.extra_options_layout)
 
@@ -1516,19 +1485,13 @@ class MizzouDataTool(QMainWindow):
         # Get all custom options
         z_enabled = self.use_z_axis_checkbox.isChecked()
         z_color = self.apply_z_as_color_checkbox.isChecked()
-        enable_grid = central_widget.findChild(QWidget, "enable_grid_lines_checkbox").isChecked()
-        enforce_color_range = central_widget.findChild(QWidget, "enforce_color_range_checkbox").isChecked()
-        enforce_square = central_widget.findChild(QWidget, "enforce_square_graph_checkbox").isChecked()
-        remove_out_of_range_data = central_widget.findChild(QWidget, "delete_out_of_range_checkbox").isChecked()
-        use_custom_title = self.custom_plot_title_checkbox.isChecked()
-        connect_points = central_widget.findChild(QWidget, "line_between_points_checkbox").isChecked()
-        if use_custom_title:
-            plot_title = central_widget.findChild(QWidget, "custom_plot_title_line_edit").text()
+        
+        if self.graph_style.custom_plot_title != "":
+            plot_title = self.graph_style.custom_plot_title
+        elif z_enabled:
+            plot_title = y_selection + " vs. " + x_selection + " vs. " + z_selection
         else:
-            if z_enabled:
-                plot_title = y_selection + " vs. " + x_selection + " vs. " + z_selection
-            else:
-                plot_title = y_selection + " vs. " + x_selection
+            plot_title = y_selection + " vs. " + x_selection
 
         self.canvas.figure.clear()
 
@@ -1545,30 +1508,30 @@ class MizzouDataTool(QMainWindow):
         z_dataType = self.data_frame.headers[z_selection]
         z_data = [row[z_dataType.index] for row in self.data_frame.df]
 
-        graph_object = GraphObject(plot_type, graph_style, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, [x_selection, y_selection, z_selection], plot_title, remove_out_of_range_data, enable_grid, enforce_color_range, enforce_square, connect_points)
+        graph_object = GraphObject(plot_type, graph_style, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, [x_selection, y_selection, z_selection], plot_title)
 
         figure = self.canvas.figure
-        try:
-            if not return_params:
-                if plot_type == 0:
-                    make_plot_2D(figure, graph_object)
-                elif plot_type == 1:
-                    make_plot_3D_color(figure, graph_object)
-                else:
-                    make_plot_3D(figure, graph_object)
-                self.canvas.draw()
+        # try:
+        if not return_params:
+            if plot_type == 0:
+                make_plot_2D(figure, graph_object)
+            elif plot_type == 1:
+                make_plot_3D_color(figure, graph_object)
             else:
-                return graph_object
-        except Exception as e:
-            err_type = type(e).__name__
-            if err_type == "TypeError":
-                self.log_message("Error: Cannot create graph from given data type")
-                if self.zen:
-                    self.show_error_dialog("Cannot create graph from given data type")
-            else:
-                self.log_message("Error: Encountered an unexpected error when attempting to graph.")
-                if self.zen:
-                        self.show_error_dialog("Encountered an unexpected error when attempting to graph.")
+                make_plot_3D(figure, graph_object)
+            self.canvas.draw()
+        else:
+            return graph_object
+        # except Exception as e:
+        #     err_type = type(e).__name__
+        #     if err_type == "TypeError":
+        #         self.log_message("Error: Cannot create graph from given data type")
+        #         if self.zen:
+        #             self.show_error_dialog("Cannot create graph from given data type")
+        #     else:
+        #         self.log_message("Error: Encountered an unexpected error when attempting to graph.")
+        #         if self.zen:
+        #                 self.show_error_dialog("Encountered an unexpected error when attempting to graph.")
 
     # Function to pop out a full screen window with the currently selected graph options. This
     # window will behave as a fully independant graph, and can be translated and rescaled
@@ -1783,17 +1746,6 @@ class MizzouDataTool(QMainWindow):
             central_widget.findChild(QWidget, "save_button_Y").hide()
             central_widget.findChild(QWidget, "save_button_Z").hide()
 
-            self.enable_grid_lines_checkbox.hide()
-            self.enforce_square_graph_checkbox.hide()
-            self.delete_out_of_range_checkbox.hide()
-            self.line_between_points_checkbox.hide()
-            self.enforce_color_range_checkbox.hide()
-            self.custom_plot_title_checkbox.hide()
-            self.custom_plot_title_line_edit.hide()
-            self.preset_graphing_dropdown.hide()
-            self.extra_options_layout.removeWidget(self.apply_z_as_color_checkbox)
-            self.extra_options_layout.addWidget(self.apply_z_as_color_checkbox, 0, 1)
-
             self.extra_graph_buttons_dropdown.hide()
 
             self.terminal_title.hide()
@@ -1848,17 +1800,6 @@ class MizzouDataTool(QMainWindow):
             central_widget.findChild(QWidget, "save_button_X").show()
             central_widget.findChild(QWidget, "save_button_Y").show()
             central_widget.findChild(QWidget, "save_button_Z").show()
-
-            self.enable_grid_lines_checkbox.show()
-            self.enforce_square_graph_checkbox.show()
-            self.delete_out_of_range_checkbox.show()
-            self.line_between_points_checkbox.show()
-            self.enforce_color_range_checkbox.show()
-            self.custom_plot_title_checkbox.show()
-            self.custom_plot_title_line_edit.show()
-            self.preset_graphing_dropdown.show()
-            self.extra_options_layout.removeWidget(self.apply_z_as_color_checkbox)
-            self.extra_options_layout.addWidget(self.apply_z_as_color_checkbox, 1, 0)
 
             self.extra_graph_buttons_dropdown.show()
 
@@ -1995,6 +1936,25 @@ class ModifyGraphStyle(QDialog):
         self.show_stddev_checkbox = QCheckBox("Show Standard Deviation")
         self.show_stddev_checkbox.setChecked(graph_style.show_stddev)
 
+        self.show_grid_lines_checkbox = QCheckBox("Enable Grid Lines")
+        self.show_grid_lines_checkbox.setChecked(graph_style.show_grid_lines)
+
+        self.enforce_square_graph_checkbox = QCheckBox("Enforce Square Graph")
+        self.enforce_square_graph_checkbox.setChecked(graph_style.enforce_square)
+
+        self.remove_out_of_range_checkbox = QCheckBox("Remove Out of Range Data")
+        self.remove_out_of_range_checkbox.setChecked(graph_style.remove_out_of_range_data)
+
+        self.connect_points_checkbox = QCheckBox("Line Between Points")
+        self.connect_points_checkbox.setChecked(graph_style.connect_points)
+
+        self.enforce_color_range_checkbox = QCheckBox("Enforce Color Range")
+        self.enforce_color_range_checkbox.setChecked(graph_style.enforce_color_range)
+
+        self.custom_plot_title_label = QLabel("Custom Plot Title:")
+        self.custom_plot_title_line_edit = QLineEdit()
+        self.custom_plot_title_line_edit.setText(graph_style.custom_plot_title)
+
         self.trend_line_options = ["None", "Linear", "Polynomial", "Moving Average", "Logarithmic"]
         self.trend_line_label = QLabel("Trend Line Type:")
         self.trend_line_dropdown = QComboBox()
@@ -2050,6 +2010,13 @@ class ModifyGraphStyle(QDialog):
         self.layout.addWidget(self.show_min_checkbox)
         self.layout.addWidget(self.show_max_checkbox)
         self.layout.addWidget(self.show_stddev_checkbox)
+        self.layout.addWidget(self.show_grid_lines_checkbox)
+        self.layout.addWidget(self.enforce_square_graph_checkbox)
+        self.layout.addWidget(self.remove_out_of_range_checkbox)
+        self.layout.addWidget(self.connect_points_checkbox)
+        self.layout.addWidget(self.enforce_color_range_checkbox)
+        self.layout.addWidget(self.custom_plot_title_label)
+        self.layout.addWidget(self.custom_plot_title_line_edit)
         self.layout.addWidget(self.trend_line_label)
         self.layout.addWidget(self.trend_line_dropdown)
         self.layout.addWidget(self.trend_line_color_label)
@@ -2100,6 +2067,12 @@ class ModifyGraphStyle(QDialog):
         show_min = self.show_min_checkbox.isChecked()
         show_max = self.show_max_checkbox.isChecked()
         show_stddev = self.show_stddev_checkbox.isChecked()
+        show_grid_lines = self.show_grid_lines_checkbox.isChecked()
+        enforce_square = self.enforce_square_graph_checkbox.isChecked()
+        remove_out_of_range_data = self.remove_out_of_range_checkbox.isChecked()
+        custom_plot_title = self.custom_plot_title_line_edit.text()
+        connect_points = self.connect_points_checkbox.isChecked()
+        enforce_color_range = self.enforce_color_range_checkbox.isChecked()
         trend_line_type = self.trend_line_dropdown.currentText()
         trend_line_color = self.trend_line_color_dropdown.currentText()
         polynomial_order = self.polynomial_order_input.text()
@@ -2121,7 +2094,10 @@ class ModifyGraphStyle(QDialog):
         marker_color = self.marker_color_dropdown.currentText()
         marker_style = self.line_marker_options[self.line_marker_dropdown.currentText()]
         line_name = self.line_name_input.text()
-        graph_style = GraphStyle(show_min, show_max, show_stddev, trend_line_type, trend_line_color, polynomial_order, moving_average_length, marker_size, marker_color, marker_style, line_name)
+        graph_style = GraphStyle(show_min, show_max, show_stddev, show_grid_lines, enforce_square, 
+                                 remove_out_of_range_data, custom_plot_title, connect_points, 
+                                 enforce_color_range, trend_line_type, trend_line_color, polynomial_order, 
+                                 moving_average_length, marker_size, marker_color, marker_style, line_name)
         return graph_style
 
 # Main code for the app. Creates a new QApp, a new window to show, and starts the app
