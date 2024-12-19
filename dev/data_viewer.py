@@ -25,6 +25,8 @@ from PyQt6.QtGui import QPalette, QColor, QFont
 import sys
 import pickle
 
+# Class which will store the "graph style", which is all of the 
+# data defining a graph except its data and data types
 class GraphStyle:
     def __init__(self, show_min, show_max, show_stddev, show_grid_lines, enforce_square, 
                  remove_out_of_range_data, custom_plot_title, connect_points, enforce_color_range, trend_line_type, 
@@ -63,13 +65,18 @@ class GraphObject:
         self.names = names
         self.plot_title = plot_title
 
+# Function to calculate moving averages, used for trend lines. 
+# Should be updated in the future to be padded on edges 
 def movingaverage(interval, window_size):
     window= np.ones(int(window_size))/float(window_size)
     return np.convolve(interval, window, 'same')
 
+# Function to calculate logarithms, used for trend lines
 def logarithm(x, a, b):
     return a * np.log(x) + b
 
+# Function which makes a 2 dimensional plot from a graph object. 
+# This can be from the main window, as a breakout window, or as a saved graph
 def make_plot_2D(figure, graph_object: GraphObject):
     x_dataType = graph_object.x_dataType
     y_dataType = graph_object.y_dataType
@@ -192,6 +199,8 @@ def make_plot_2D(figure, graph_object: GraphObject):
         plot.set_box_aspect(1)
     else: plot.set_box_aspect(None)
 
+# Function which makes a 2 dimensional plot with color as a third dimension from a graph object. 
+# This can be from the main window, as a breakout window, or as a saved graph
 def make_plot_3D_color(figure, graph_object: GraphObject):
     names = graph_object.names
 
@@ -371,6 +380,8 @@ def make_plot_3D_color(figure, graph_object: GraphObject):
         plot.set_box_aspect(1)
     else: plot.set_box_aspect(None)
 
+# Function which makes a 3 dimensional plot from a graph object. 
+# This can be from the main window, as a breakout window, or as a saved graph
 def make_plot_3D(figure, graph_object: GraphObject):
     names = graph_object.names
 
@@ -524,6 +535,8 @@ def make_plot_3D(figure, graph_object: GraphObject):
         plot.set_box_aspect((1,1,1))
     else: plot.set_box_aspect(None)
 
+# Generic function to take any graph_object and call the 
+# correct graphing function based on the "plot_type"
 def make_plot(figure, graph_object: GraphObject):
     if graph_object.plot_type == 1:
         make_plot_2D(figure, graph_object)
@@ -1511,27 +1524,27 @@ class MizzouDataTool(QMainWindow):
         graph_object = GraphObject(plot_type, graph_style, x_data, x_dataType, y_data, y_dataType, z_data, z_dataType, [x_selection, y_selection, z_selection], plot_title)
 
         figure = self.canvas.figure
-        # try:
-        if not return_params:
-            if plot_type == 0:
-                make_plot_2D(figure, graph_object)
-            elif plot_type == 1:
-                make_plot_3D_color(figure, graph_object)
+        try:
+            if not return_params:
+                if plot_type == 0:
+                    make_plot_2D(figure, graph_object)
+                elif plot_type == 1:
+                    make_plot_3D_color(figure, graph_object)
+                else:
+                    make_plot_3D(figure, graph_object)
+                self.canvas.draw()
             else:
-                make_plot_3D(figure, graph_object)
-            self.canvas.draw()
-        else:
-            return graph_object
-        # except Exception as e:
-        #     err_type = type(e).__name__
-        #     if err_type == "TypeError":
-        #         self.log_message("Error: Cannot create graph from given data type")
-        #         if self.zen:
-        #             self.show_error_dialog("Cannot create graph from given data type")
-        #     else:
-        #         self.log_message("Error: Encountered an unexpected error when attempting to graph.")
-        #         if self.zen:
-        #                 self.show_error_dialog("Encountered an unexpected error when attempting to graph.")
+                return graph_object
+        except Exception as e:
+            err_type = type(e).__name__
+            if err_type == "TypeError":
+                self.log_message("Error: Cannot create graph from given data type")
+                if self.zen:
+                    self.show_error_dialog("Cannot create graph from given data type")
+            else:
+                self.log_message("Error: Encountered an unexpected error when attempting to graph.")
+                if self.zen:
+                        self.show_error_dialog("Encountered an unexpected error when attempting to graph.")
 
     # Function to pop out a full screen window with the currently selected graph options. This
     # window will behave as a fully independant graph, and can be translated and rescaled
@@ -1918,6 +1931,8 @@ class RemovePresetPopoutWindow(QDialog):
         """Return the entered text when dialog is accepted."""
         return self.preset_name_dropdown.currentText()
 
+# Breakout window class used to modify the "style" of the graph to be created. 
+# This includes all items surrounding the graph except its data and data types
 class ModifyGraphStyle(QDialog):
     def __init__(self, graph_style: GraphStyle, parent=None):
         super().__init__(parent)
@@ -1987,15 +2002,15 @@ class ModifyGraphStyle(QDialog):
         self.marker_color_dropdown.setCurrentText(graph_style.marker_color)
 
         self.line_marker_options = {
-                                    "point": ".",
                                     "circle": "o", 
+                                    "point": ".",
                                     "triangle": "^", 
                                     "square": "s", 
                                     "star": "*", 
                                     "X": "x", 
                                     "diamond": "D"
                                     }
-        self.line_marker_label = QLabel("Line Marker Style:")
+        self.line_marker_label = QLabel("Marker Style:")
         self.line_marker_dropdown = QComboBox()
         self.line_marker_dropdown.addItems(self.line_marker_options.keys())
         self.line_marker_dropdown.setCurrentIndex(list(self.line_marker_options.values()).index(graph_style.marker_style))

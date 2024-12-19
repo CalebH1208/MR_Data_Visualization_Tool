@@ -113,14 +113,24 @@ hides the terminal, which will inform the user of error states occuring.
 
 - Apply Z-Axis as Color:
 
-    This checkbox cna be used to create a 2D plot with color as the third dimension. The "Use Z Axis"
+    This checkbox can be used to create a 2D plot with color as the third dimension. The "Use Z Axis"
     box must also be enabled for this to function.
+
+- Load Preset Graph:
+
+    This dropdown menu will hold options for each line in the PRESETS.CSV file, which is not intended
+    to be interacted with directly. This enables the user to store abstract presets of graphs which 
+    will be loaded often. Each of these options represents a graphing "preset", which is an x, y, and 
+    z selection of headers and what plot type the graph should be (2D, 2D w/ Color, 3D). The actual 
+    data, data types, and graph style will be pulled from the current state. See below for creating
+    and removing presets.
 
 - Toggle Zen Mode:
 
     This button toggles the "Zen Mode", which by default hides all non-essential functions. This is
     intended to increase useability and visuals for the app. Note that when in zen mode the terminal
-    is hidden from view, and thus error messages can be missed.
+    is hidden from view, and thus error messages can be missed,  but in most cases a popup error
+    window will occur instead if an error is encountered.
 
 - Generate Graph:
 
@@ -179,46 +189,6 @@ hides the terminal, which will inform the user of error states occuring.
     NOT store the values to the MONOLITH.CSV file until the "Save Data Frame" button is used. This
     button changes to green when there are unsaved fields.
 
-- Enable Grid Lines
-
-    This checkbox can be used to enable or disable teh default grid lines on the graphs. This will
-    apply for embedded, saved, and popout graphs. Checked by default.
-
-- Enforce Square Graph
-
-    This checkbox can be used to force the X and Y axis (and Z if using 3D) to take on the same scaling
-    and physical size on the screen. This is most useful for data where the X and Y axes are in
-    relation to each other (such as longitude vs lattitude or GvG Graphs). Unchecked by default.
-
-- Remove Data Till in Range
-
-    This checkbox can be used to hide all datapoints from the beginning of the file till these points
-    are in the specified valid range in both X and Y axes. This is most useful for removing invalid
-    start-up data such as that GPS data obtained before GPS-lock is acheived. If this is left
-    unchecked, then the out of range data will default to the range boundary. Checked by default.
-
-- Use Custom Plot Title
-
-    This checkbox and field combo can be used to apply a custom title to a graph when it generates.
-    If the check box is not checked, then the title will default to "{Z} vs. {Y} vs. {X}", and include
-    units if they are available. All labels can be overriden in plot, see "Interacting with a graph"
-    above. Unchecked by default.
-
-- Enforce Color Range
-
-    This checkbox will enforce that the max and min values for the color axis on the 2D plots with
-    color are set to the max and min range values for that axis. This is helpful for standardizing the
-    color scaling when comparing graphs, as it is difficult to get a quantitative comparison otherwise.
-    If desired, the scaling can be fine tuned from the stonks icon menu on the interactive graph.
-    Unchecked by default.
-
-- Load preset Graph
-
-    The PRESETS.CSV file will store created preset graphs, which can then be loaded using this dropdown
-    menu. The presets here will then be populated into the axis dropdowns for X, Y, and Z, and the Z
-    axis checkboxes will be updated. Note that the other optional checkboxes are not stored with
-    presets. See below for creating new presets.
-
 - Extra Graphing Options
 
     The extra graphing options dropdown provides a wealth of added and useful features for creating and
@@ -258,6 +228,117 @@ hides the terminal, which will inform the user of error states occuring.
     This function can be used to remove a preset graph from the list. This will open a popout window
     from which the desired preset can be selected for removal. The "Remove" button must be used to
     confirm the removal.
+
+- Modify Graph Style
+
+    This function can be used to create a popout window which will enable th euser to modify how
+    graphs are displayed. When the style is changed the changes will not take effect until the
+    confirm settings button is pressed and the graph is generated again. See below for specific
+    functionality of these options.
+
+    - Show Min
+
+        This checkbox can be used to display the minimum x and y values as a movable text box on top of
+        the graph. Unchecked by default.
+
+    - Show Max
+
+        This checkbox can be used to display the maximum x and y values as a movable text box on top of
+        the graph. Unchecked by default.
+
+    - Show Standard Deviation
+
+        This checkbox can be used to display the standard deviation of the x and y values as a movable text
+        box on top of the graph. Unchecked by default.
+
+    - Enable Grid Lines
+
+        This checkbox can be used to enable or disable teh default grid lines on the graphs. This will
+        apply for embedded, saved, and popout graphs. Checked by default.
+
+    - Enforce Square Graph
+
+        This checkbox can be used to force the X and Y axis (and Z if using 3D) to take on the same scaling
+        and physical size on the screen. This is most useful for data where the X and Y axes are in
+        relation to each other (such as longitude vs lattitude or GvG Graphs). Unchecked by default.
+
+    - Remove Out of Range Data
+
+        This checkbox can be used to hide all datapoints which are out of the specified valid range in both
+        X and Y axes. This is most useful for removing invalid start-up data such as that GPS data obtained
+        before GPS-lock is acheived. If this is left unchecked, then the out of range data will default to 
+        the range boundary. Checked by default.
+
+    - Line Between Points
+
+        This checkbox can be used to also plot a line between each consectuive data points. The style of
+        this line cannot be changed, and this option is most useful for making graphs look more cohesive or
+        showing the progression of data points through time in 2D.
+
+    - Enforce Color Range
+
+        This checkbox will enforce that the max and min values for the color axis on the 2D plots with
+        color are set to the max and min range values for that axis. This is helpful for standardizing the
+        color scaling when comparing graphs, as it is difficult to get a quantitative comparison otherwise.
+        If desired, the scaling can be fine tuned from the stonks icon menu on the interactive graph.
+        Unchecked by default.
+
+    - Custom Plot Title
+
+        This field can be used to apply a custom title to a graph when it generates. If no text is present, 
+        then the title will default to "{Z} vs. {Y} vs. {X}", and include units if they are available. All 
+        labels can be overriden in plot, see "Interacting with a graph" above. Blank by default.
+
+    - Trend Line Type
+
+        This dropdown can be used to add a trend line to graphs. The options for this are None, Linear,
+        Polynomial, Moving Average, and Logorithmic trend lines. If polynomial or moving average are
+        selected, an additional field will appear to allow the user to modify parameters relating to these
+        trend lines. None is selected by default
+
+    - Trend Line Color
+
+        This dropdown can be used to modify the color of trend lines. The options are the seven colors of
+        the rainbow as well as black, grey, and white. The discrete options are used to remove the user
+        complexity of including for example a hex code. Black is selected by default.
+
+    - Polynomial Order
+
+        This field can be used to select the numeric order of the polynomial trend line to fit to the data.
+        For example, 2 corresponds to a parabolic trend line. The minimum value is 1, and the maximum value
+        is 100. Only integer numeric options are allowed. This field will only display when the 
+        "Polynomial" option is selected in the Trend Line Type dropdown menu. 2 is the default value.
+
+    - Points to Average Over
+
+        This field can be used to select the number of points over which to create a moving average trend
+        line. All entries must be positive integer values. This calculation is zero-padded, and thus does
+        not work on the edges of sequential data. This field will only display when the "Moving Average"
+        option is selected in the Trend Line Type dropdown menu. 10 is the default value.
+
+    - Marker Size
+
+        This field can be used to alter the size of the markers which make up the scatter plots of graphs.
+        This is a relative size on teh screen, and does not change with scaling of the graph. 10 is the 
+        default value.
+
+    - Marker Color
+
+        This dropdown can be used to modify the color of the markers which make up the scatter plots of 
+        graphs. The options are the seven colors of the rainbow as well as black, grey, and white. The 
+        discrete options are used to remove the user complexity of including for example a hex code. 
+        Blue is selected by default.
+
+    - Marker Style
+
+        This dropdown is used to modify the shape of the markers which make up the scatter plots of 
+        graphs. The options are circle, point, triangle, square, star, X, and diamond. Circle is selected 
+        by default.
+
+    - Line Name
+
+        This field can be used to add a legend to the graph if the line is not blank, which will contain
+        the line name entered as well as the marker style used. Blank by default.
 
 - Terminal
 
