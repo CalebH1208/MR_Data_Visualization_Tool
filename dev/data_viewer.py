@@ -723,7 +723,7 @@ class Dataframe:
             precisions = file.readline().rstrip().split(',')
 
             for i in indecies:
-                temp_dict[names[i]] = DataType(i, units[i], conversions[i], precisions[i])
+                temp_dict[names[i]] = DataType(i, units[i], float(conversions[i]), float(precisions[i]))
             return temp_dict
         
         # Function which inserts values from the given line into the data. This is used as the
@@ -775,6 +775,10 @@ class Dataframe:
                     continue
                 if line[0] == "Time":
                     offset_loc += 1
+                    #consume lines for the header v2 restarts
+                    file.readline()
+                    file.readline()
+                    file.readline()
                     continue
                 line = convert_list_to_num(line)
                 line[0] += self.restarts[offset_loc]
@@ -797,12 +801,15 @@ class Dataframe:
             if self.header_version == 1:
                 self.headers = header_v1(file100)
             if self.header_version == 2:
-                self.headers = header_v2(file100)\
+                self.headers = header_v2(file100)
             
             offset = 0
             while True:
                 line = file100.readline()
-                if not line: break
+                
+                if not line:
+                    break
+                    
                 line = line.rstrip().split(',')
                 if len(line) > len(self.headers):
                     continue
@@ -811,8 +818,15 @@ class Dataframe:
                     offset = self.df[-1][0]
                     self.restarts.append(offset)
                     continue
+                # Catch for case where we have header V2 and restarts, so ignore the additional lines
+                if not line[0].isnumeric():
+                    file100.readline()
+                    file100.readline()
+                    file100.readline()
+                    continue
                 line = convert_list_to_num(line)
                 line[0] += offset
+                # print(line)
                 self.df.append(line)
 
             low_HZ_append(file10)
@@ -840,7 +854,7 @@ class Dataframe:
                         self.df[first_ind+i][y] = first 
                     first = second
                     first_ind = second_ind
-
+            
             self.df.pop()
 
         # Function which reads in the data from the MONOLITH.CSV, in the header v2 format with
@@ -954,7 +968,7 @@ class MizzouDataTool(QMainWindow):
         self.data_file_path = "."
         self.data_frame = None
 
-        self.graph_style = GraphStyle(False, False, False, True, False, False, "", False, False, "None", "black", 2, 10, 10, "blue", "o", "")
+        self.graph_style = GraphStyle(False, False, False, True, False, True, "", False, False, "None", "black", 2, 10, 10, "blue", "o", "")
 
         # Set the window title
         self.setWindowTitle("Mizzou Data Tool")
