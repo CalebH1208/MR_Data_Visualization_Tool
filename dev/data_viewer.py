@@ -781,7 +781,10 @@ class Dataframe:
                     file.readline()
                     continue
                 line = convert_list_to_num(line)
-                line[0] += self.restarts[offset_loc]
+                try:
+                    line[0] += self.restarts[offset_loc]
+                except IndexError:
+                    print(offset_loc, len(self.restarts))
                 for x in header_remove_dict:
                     line.pop(header_remove_dict[x].index)
                 
